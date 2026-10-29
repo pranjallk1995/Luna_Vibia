@@ -939,6 +939,25 @@ class PlaybackService:
         """Move what plays to ``speaker``, resuming the current track where it is."""
         return self.player.switch(self.match(self.player.speakers(), speaker))
 
+    # What other apps (Luna Lumia's music schemes) need to know about the playing track.
+    TRACK_FIELDS = ("name", "title", "artist", "caption", "tags", "tempo_bpm", "energy", "musical_key")
+
+    def status(self, output: bool = True) -> dict[str, Any]:
+        """The playback status, with ``track``: the playing track's caption, tags, and facts.
+
+        ``output`` also reads the speaker sound reaches now; that asks the host, so
+        callers polling often (Luna Lumia) skip it.
+        """
+        status = self.player.live_status() if output else self.player.status()
+        name = status.get("now_playing")
+        if name:
+            try:
+                row = self.visible.get(name)
+            except FileNotFoundError:
+                return status
+            status["track"] = {field: row.get(field) for field in self.TRACK_FIELDS}
+        return status
+
 
 class VibiaService:
     """Facade grouping every Luna Vibia use case for the transport adapters."""

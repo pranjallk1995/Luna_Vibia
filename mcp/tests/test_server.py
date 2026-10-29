@@ -681,6 +681,12 @@ class PlaybackToolTests(ServerTestCase):
         playing = self.call("get_playback_status", {})
         self.assertEqual((playing["now_playing"], playing["output"]), ("two.wav", self.DESK.as_row()))
         self.assertNotIn("requested_speaker", playing)
+        self.assertEqual(playing["track"]["name"], "two.wav")
+        self.assertIn("tags", playing["track"])
+        with self.client() as client:
+            light = client.get("/api/playback", params={"output": "0"}).json()
+        self.assertEqual(light["track"]["name"], "two.wav")
+        self.assertNotIn("output", light)
         self.assertEqual(self.call("stop_playback", {}), {"status": "stopped"})
         self.assertEqual(self.call("get_playback_status", {})["status"], "idle")
 

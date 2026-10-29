@@ -40,7 +40,8 @@ Visia image URLs that other apps use: food images for Vita, room images for
 Lumia, and cover art for Vibia. Grey dashed lines are planned: links into Fiora
 (tax details from Lexia, transaction image and icon URLs from Visia). Luna Unia
 is the one home for all of them, on port 42069: it checks which Luna stacks are
-running and opens each one with the shared sign-in.
+running and opens each one with the shared sign-in. The purple line is the mood of
+the track Vibia plays, which Lumia's music schemes follow.
 
 | Component | Technology | Purpose |
 | --- | --- | --- |
@@ -164,7 +165,11 @@ docker compose up -d
 - `play_tracks` - play tracks out loud, in order and optionally looped, on a speaker of the machine running Vibia. With several speakers connected and none named, nothing plays: it returns `choose_speaker` and the options so the LLM asks which one.
 - `list_speakers` - the connected speakers (under WSL, Windows' Bluetooth speakers), with the current output marked.
 - `switch_speaker` - move what is playing to another speaker; the current track resumes there at the second it had reached. `play_tracks` with the same queue does the same instead of restarting.
-- `get_playback_status` / `stop_playback` - what is playing (with `position_seconds` into the current track), and stop it.
+- `get_playback_status` / `stop_playback` - what is playing (with `position_seconds` into the current track, and `track`: its caption, tags, tempo, and key), and stop it.
+
+[Luna Lumia](https://github.com/pranjallk1995/Luna_Lumia) reads the same status from `GET /api/playback?output=0`
+(`output=0` skips asking Windows for its current speaker) to light the room for each
+track's mood, for example soft light blues with slow fades for a loop of sleep tracks.
 
 The MCP container plays through the host's PulseAudio (or PipeWire) server, whose
 socket `PULSE_SOCKET` mounts into it. On Linux, set it to `/run/user/1000/pulse/native`

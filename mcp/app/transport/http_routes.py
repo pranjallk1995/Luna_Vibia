@@ -264,7 +264,9 @@ class VibiaHTTPRoutes:
         playback_service = self.service.playback
 
         async def playback(request: Request):
-            return await anyio.to_thread.run_sync(playback_service.player.live_status)
+            # ?output=0 skips asking the host for its current speaker (for frequent polling).
+            output = request.query_params.get("output", "1") != "0"
+            return await anyio.to_thread.run_sync(playback_service.status, output)
 
         self.route("GET", "/api/playback", playback)
 

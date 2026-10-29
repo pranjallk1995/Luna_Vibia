@@ -342,13 +342,15 @@ class VibiaMCPTools:
         async def get_playback_status() -> dict[str, Any]:
             """Return what is playing: status, speaker, queued tracks, loop, now_playing, and position_seconds.
 
+            track has the playing track's caption, tags, tempo, and key.
+
             status is idle, playing, finished, or failed (with the track and error).
             speaker and output are where the sound goes right now, read live from
             the host: the output can change after playback starts (for example
             when another Bluetooth speaker connects), and then requested_speaker
             and note say so. Always tell the user the speaker reported here.
             """
-            return await offload(playback.player.live_status)
+            return await offload(playback.status)
 
     def _register_mutation_tools(self) -> None:
         server, visible, sources, uploads = (
