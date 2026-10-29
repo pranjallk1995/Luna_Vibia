@@ -1,0 +1,98 @@
+services:
+  mcp:
+    build: ./mcp
+    image: ghcr.io/pranjallk1995/luna-vibia-mcp:latest
+    working_dir: /workspace/mcp
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://lunavibia:${POSTGRES_PASSWORD:-lunavibia-dev}@luna-sentia-db:5432/lunavibia
+      TRACK_DIR: /data/tracks
+      OLLAMA_URL: ${OLLAMA_URL:-http://luna-sentia-ollama:11434}
+      CAPTION_MODEL: ${CAPTION_MODEL:-qwen3-vl:8b-instruct}
+      LUNAVISIA_API_URL: ${LUNAVISIA_API_URL:-http://luna-visia-mcp:8000}
+      LUNAVIBIA_PUBLIC_BASE_URL: ${LUNAVIBIA_PUBLIC_BASE_URL}
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://localhost:18005}
+      LUNAVIBIA_API_TOKEN: ${LUNAVIBIA_API_TOKEN:?Set LUNAVIBIA_API_TOKEN to a private random value of at least 32 characters}
+    expose:
+      - "8000"
+    ports:
+      - "127.0.0.1:18005:8000"
+    volumes:
+      - track_data:/data/tracks
+      - download_data:/data/downloads
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./mcp
+          target: /workspace/mcp
+          ignore:
+            - __pycache__/
+            - "*.py[cod]"
+            - .pytest_cache/
+            - tests/
+            - requirements.txt
+            - Dockerfile
+        - action: rebuild
+          path: ./mcp/requirements.txt
+        - action: rebuild
+          path: ./mcp/Dockerfile
+    networks:
+      sentia_network:
+        aliases:
+          - luna-vibia-mcp
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ui:
+    build: ./ui
+    image: ghcr.io/pranjallk1995/luna-vibia-ui:latest
+    working_dir: /workspace/ui
+    restart: unless-stopped
+    environment:
+      LUNA_SSO_URL: ${LUNA_SSO_URL:?Set LUNA_SSO_URL to Luna Sentia's public sign-on address}
+      LUNA_SSO_INTERNAL_URL: ${LUNA_SSO_INTERNAL_URL:-http://luna-sentia-auth:8000}
+      TRACK_DIR: /data/tracks
+      LUNAVIBIA_API_URL: http://luna-vibia-mcp:8000
+      LUNAVISIA_API_URL: ${LUNAVISIA_API_URL:-http://luna-visia-mcp:8000}
+      LUNAVIBIA_API_TOKEN: ${LUNAVIBIA_API_TOKEN:?Set LUNAVIBIA_API_TOKEN to a private random value of at least 32 characters}
+      LUNAVIBIA_ALLOWED_EMAILS: ${LUNAVIBIA_ALLOWED_EMAILS:?Set LUNAVIBIA_ALLOWED_EMAILS to the Google accounts allowed to access Vibia}
+    ports:
+      - "127.0.0.1:18506:8501"
+    volumes:
+      - track_data:/data/tracks:ro
+    develop:
+      watch:
+        - action: sync
+          path: ./ui
+          target: /workspace/ui
+          ignore:
+            - __pycache__/
+            - "*.py[cod]"
+            - .pytest_cache/
+            - requirements.txt
+            - Dockerfile
+        - action: rebuild
+          path: ./ui/requirements.txt
+        - action: rebuild
+          path: ./ui/Dockerfile
+    networks:
+      sentia_network:
+        aliases:
+          - luna-vibia-ui
+    depends_on:
+      mcp:
+        condition: service_healthy
+
+volumes:
+  track_data:
+    name: luna_vibia_track_data
+  download_data:
+    name: luna_vibia_download_data
+
+networks:
+  sentia_network:
+    external: true
+    name: luna_sentia_network

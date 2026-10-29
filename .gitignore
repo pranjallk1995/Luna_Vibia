@@ -1,0 +1,16 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+ui/.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Editors and OS
+*.swp
+.DS_Store

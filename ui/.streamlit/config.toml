@@ -1,0 +1,15 @@
+[theme]
+base = "dark"
+primaryColor = "#F5F5F5"
+backgroundColor = "#111111"
+secondaryBackgroundColor = "#1A1A1A"
+textColor = "#F5F5F5"
+font = "monospace"
+
+[theme.sidebar]
+backgroundColor = "#141414"
+secondaryBackgroundColor = "#202020"
+
+[server]
+headless = true
+runOnSave = true
