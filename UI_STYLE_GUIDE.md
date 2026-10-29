@@ -50,6 +50,7 @@ variables.
 | Luna Vibia | `ui/assets/lunavibia_logo.png` | PNG, 8-bit RGBA | 1254 x 1254 px | 619,255 bytes | 5.75rem x 4.5rem | 4rem x 3.4rem |
 | Luna Vita | `ui/assets/lunavita_logo.png` | PNG, 8-bit RGBA | 1254 x 1254 px | 637,054 bytes | 5.75rem x 4.5rem | 4.25rem x 3.5rem |
 | Luna Lumia | `ui/assets/lunalumia_logo.png` | PNG, 8-bit RGBA | 1254 x 1254 px | 577,562 bytes | 5.75rem x 4.5rem | 4.25rem x 3.5rem |
+| Luna Unia | `ui/assets/lunaunia_logo.png` | PNG, 8-bit RGBA | 1254 x 1254 px | 800,647 bytes | 5.75rem x 4.5rem | 4rem x 3.4rem |
 
 Logos are embedded as base64 `data:` URIs in an `<img class="lv-mark">` and
 render with `object-fit: contain`, so the square source keeps its aspect ratio
@@ -95,6 +96,7 @@ The right column holds the app's main controls, ending with **Sign out**:
 | Luna Vibia | Grid view, List view, **Upload Images** (primary), Sign out. Nested columns `[1, 1, 3, 2]`. |
 | Luna Vita | Log date picker, Sign out. Nested columns `[3, 2]`. |
 | Luna Lumia | Refresh lights (icon only), **Turn all on / off** (primary), Sign out. Horizontal container `header_actions`. |
+| Luna Unia | **Check again** (primary), Sign out. Nested columns `[3, 2]`. |
 
 Shared rules:
 
@@ -242,6 +244,7 @@ labels are hidden and icons are shown at `1.25rem`.
 | Luna Vibia | `st.segmented_control` | `gallery_navigation` |
 | Luna Vita | `st.segmented_control` | `nutrition_navigation` |
 | Luna Lumia | `st.tabs` | (none) |
+| Luna Unia | None: a single page (see [Known deviations](#known-deviations)) | (none) |
 
 Prefer the segmented control. Tabs use different internal wrappers, so Lumia's
 tab list uses a `1.2rem` top margin instead of `.2rem` to land on the same
@@ -279,6 +282,7 @@ this guide or deliberately accepted here.
 | Vita, Lumia | Mobile logo `4.25rem x 3.5rem`, title `clamp(1.55rem, 8vw, 2rem)`. | Vibia uses `4rem x 3.4rem`, `clamp(1.55rem, 8vw, 1.85rem)`. Pick one for all three. |
 | Vita | Colour variables use short names (`--text`, `--panel` …). | `--lv-*` names. |
 | Lumia | Control-hover variable is `--lv-hover`. | `--lv-control-hover`. |
+| Unia | No navbar. Its one page is a grid of app cards, and the status summary above the grid (`.lu-summary`) takes the navbar's surface and `.2rem 0 1.15rem` margin. | Full-width navbar below the header. Accepted: Unia has nothing to navigate between. |
 
 ## Checklists
 

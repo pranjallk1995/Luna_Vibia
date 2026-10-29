@@ -30,9 +30,9 @@ Every Luna app is a Streamlit UI plus a FastMCP service on Luna Sentia's
 through Sentia's `auth`, and model calls go to Sentia's Ollama. Orange lines are
 Visia image URLs that other apps use: food images for Vita, room images for
 Lumia, and cover art for Vibia. Grey dashed lines are planned: links into Fiora
-(tax details from Lexia, transaction image and icon URLs from Visia), and a
-proposed unifying app that detects which Luna apps are installed, shows them in
-one home, and opens each one with the shared sign-in.
+(tax details from Lexia, transaction image and icon URLs from Visia). Luna Unia
+is the one home for all of them, on port 42069: it checks which Luna stacks are
+running and opens each one with the shared sign-in.
 
 | Component | Technology | Purpose |
 | --- | --- | --- |
