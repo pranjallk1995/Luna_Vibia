@@ -342,6 +342,30 @@ class VisibleTrackService(TrackCollectionService):
             result["requested_name"] = requested_name
         return result
 
+    def upload_with_cover(
+        self,
+        requested_name: str | None,
+        data: bytes,
+        given: dict[str, str] | None,
+        cover_url: str | None,
+    ) -> dict[str, Any]:
+        """Upload from an LLM client: a new track always gets a Visia cover or the placeholder.
+
+        The cover is checked before the slow analysis, so a bad URL fails fast.
+        A duplicate keeps the cover it already has.
+        """
+        cover = self.cover_or_placeholder(cover_url)
+        result = self.upload(requested_name, data, given)
+        if result["status"] == "created" and cover:
+            result["cover_url"] = self.tracks.set_cover(result["name"], cover)["cover_url"]
+        return result
+
+    def cover_or_placeholder(self, cover_url: str | None) -> str | None:
+        """Visia's canonical URL for ``cover_url``, or the audio placeholder when none was given."""
+        if cover_url and cover_url.strip():
+            return self.covers.resolve(cover_url)
+        return self.covers.placeholder_url()
+
     def rename(self, name: str, new_name: str) -> dict[str, Any]:
         """Rename a track, keeping its extension, immutable ID, and public URL."""
         source = self.path(name)
@@ -463,10 +487,17 @@ class VisibleTrackService(TrackCollectionService):
     def favorites(self) -> list[Row]:
         return self.tracks.list_favorites()
 
-    def set_cover(self, name: str, cover_url: str | None) -> Row:
-        """Set a track's cover to a Luna Visia image (verified there), or clear it."""
+    def set_cover(self, name: str, cover_url: str | None, placeholder: bool = False) -> Row:
+        """Set a track's cover to a Luna Visia image (verified there).
+
+        Without a cover_url the cover is cleared, or with ``placeholder`` set to
+        the audio placeholder in Visia (still cleared while none is configured).
+        """
         self.path(name)
-        resolved = self.covers.resolve(cover_url) if cover_url and cover_url.strip() else None
+        if placeholder:
+            resolved = self.cover_or_placeholder(cover_url)
+        else:
+            resolved = self.covers.resolve(cover_url) if cover_url and cover_url.strip() else None
         return summarize(self.tracks.set_cover(name, resolved))
 
     def stats(self, top_tags: int = 10) -> dict[str, Any]:

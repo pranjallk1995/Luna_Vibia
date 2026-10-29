@@ -10,6 +10,7 @@ services:
       OLLAMA_URL: ${OLLAMA_URL:-http://luna-sentia-ollama:11434}
       CAPTION_MODEL: ${CAPTION_MODEL:-qwen3-vl:8b-instruct}
       LUNAVISIA_API_URL: ${LUNAVISIA_API_URL:-http://luna-visia-mcp:8000}
+      LUNAVIBIA_PLACEHOLDER_COVER_ID: ${LUNAVIBIA_PLACEHOLDER_COVER_ID:-}
       LUNAVIBIA_PUBLIC_BASE_URL: ${LUNAVIBIA_PUBLIC_BASE_URL}
       MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://localhost:18005}
       LUNAVIBIA_API_TOKEN: ${LUNAVIBIA_API_TOKEN:?Set LUNAVIBIA_API_TOKEN to a private random value of at least 32 characters}

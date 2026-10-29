@@ -28,12 +28,18 @@ class VisiaImageCatalog:
         re.IGNORECASE,
     )
     SEARCH_HINT = (
-        "Search Luna Visia for an image that suits the track (or create and store one there) "
-        "and pass the public_url it returns."
+        "Search Luna Visia for an image that suits the track and pass the public_url it "
+        "returns; if none fits, omit cover_url to use the Luna Vibia audio placeholder."
     )
 
-    def __init__(self, api_url: str, timeout: float = AppConfig.VISIA_TIMEOUT_SECONDS) -> None:
+    def __init__(
+        self,
+        api_url: str,
+        placeholder_image_id: str = "",
+        timeout: float = AppConfig.VISIA_TIMEOUT_SECONDS,
+    ) -> None:
         self.api_url = api_url.rstrip("/")
+        self.placeholder_image_id = placeholder_image_id.lower()
         self.timeout = timeout
 
     @classmethod
@@ -60,7 +66,21 @@ class VisiaImageCatalog:
 
     def resolve(self, cover_url: str) -> str:
         """Return Visia's canonical public URL for the image ``cover_url`` names."""
-        image_id = self.image_id(cover_url)
+        return self.resolve_id(self.image_id(cover_url))
+
+    def placeholder_url(self) -> str | None:
+        """The public URL of the audio placeholder in Visia, or None while none is configured."""
+        if not self.placeholder_image_id:
+            return None
+        try:
+            return self.resolve_id(self.placeholder_image_id)
+        except FileNotFoundError as error:
+            raise FileNotFoundError(
+                f"The Luna Vibia audio placeholder ({self.placeholder_image_id}) is missing from "
+                "Luna Visia; restore it or set LUNAVIBIA_PLACEHOLDER_COVER_ID."
+            ) from error
+
+    def resolve_id(self, image_id: str) -> str:
         for image in self.images():
             if str(image.get("image_id", "")).lower() == image_id and not image.get("hidden"):
                 return image["public_url"]

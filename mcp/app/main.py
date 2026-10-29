@@ -34,7 +34,7 @@ class LunaVibiaApplication:
                 MetadataRules(config.max_tags, config.search_stop_words),
             ),
             ClapEncoder(),
-            VisiaImageCatalog(config.visia_api_url),
+            VisiaImageCatalog(config.visia_api_url, config.placeholder_cover_id),
         )
         self.branding = ServerBranding(config.mcp_public_url)
         self.mcp = FastMCP(

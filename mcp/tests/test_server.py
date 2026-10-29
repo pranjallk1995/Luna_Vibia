@@ -324,6 +324,55 @@ class MCPToolTests(ServerTestCase):
             self.call("download_tracks", {"names": ["one.wav"], "delivery": "zip"})
 
 
+class PlaceholderCoverToolTests(ServerTestCase):
+    def test_cover_without_url_uses_the_audio_placeholder(self) -> None:
+        from fakes import FakeVisia
+
+        self.service.visible.covers = FakeVisia(FakeVisia.VISIBLE_ID)
+        result = self.call("set_track_cover", {"name": "one.wav"})
+        self.assertEqual(result["cover_url"], f"https://visia.example.test/api/public/images/{FakeVisia.VISIBLE_ID}")
+
+    def test_cover_without_url_clears_while_no_placeholder_is_set(self) -> None:
+        self.assertIsNone(self.call("set_track_cover", {"name": "one.wav"})["cover_url"])
+
+    def test_missing_placeholder_is_reported(self) -> None:
+        from fakes import FakeVisia
+
+        self.service.visible.covers = FakeVisia(FakeVisia.HIDDEN_ID)
+        with self.assertRaisesRegex(ToolError, "LUNAVIBIA_PLACEHOLDER_COVER_ID"):
+            self.call("set_track_cover", {"name": "one.wav"})
+
+    def test_upload_stores_the_checked_visia_cover(self) -> None:
+        from fakes import FakeVisia
+
+        url = f"https://anything.test/api/public/images/{FakeVisia.VISIBLE_ID}"
+        result = self.call("upload_track", {"name": "chat.wav", "content_base64": wav_payload_color(), "cover_url": url})
+        expected = f"https://visia.example.test/api/public/images/{FakeVisia.VISIBLE_ID}"
+        self.assertEqual(result["cover_url"], expected)
+        self.assertEqual(self.repository.rows["chat.wav"]["cover_url"], expected)
+
+    def test_upload_without_cover_gets_the_audio_placeholder(self) -> None:
+        from fakes import FakeVisia
+
+        self.service.visible.covers = FakeVisia(FakeVisia.VISIBLE_ID)
+        result = self.call("upload_track", {"name": "chat.wav", "content_base64": wav_payload_color()})
+        self.assertEqual(result["cover_url"], f"https://visia.example.test/api/public/images/{FakeVisia.VISIBLE_ID}")
+
+    def test_upload_with_unknown_cover_is_rejected_before_storing(self) -> None:
+        from fakes import FakeVisia
+
+        url = f"https://visia.example.test/api/public/images/{FakeVisia.HIDDEN_ID}"
+        with self.assertRaises(ToolError):
+            self.call("upload_track", {"name": "chat.wav", "content_base64": wav_payload_color(), "cover_url": url})
+        self.assertFalse((self.root / "chat.wav").exists())
+
+    def test_ui_clearing_a_cover_ignores_the_placeholder(self) -> None:
+        from fakes import FakeVisia
+
+        self.service.visible.covers = FakeVisia(FakeVisia.VISIBLE_ID)
+        self.assertIsNone(self.service.visible.set_cover("one.wav", None)["cover_url"])
+
+
 class LowercaseTagToolTests(ServerTestCase):
     """MCP tools reject capitalized tags instead of silently lowercasing them."""
 

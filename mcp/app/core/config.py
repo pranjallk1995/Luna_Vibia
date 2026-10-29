@@ -1,6 +1,7 @@
 """Validated runtime configuration for the Luna Vibia backend."""
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
@@ -53,6 +54,8 @@ class AppConfig:
     ollama_url: str
     caption_model: str
     visia_api_url: str = "http://luna-visia-mcp:8000"
+    # Visia image ID of the audio placeholder covering tracks no Visia image suits ("" = none yet).
+    placeholder_cover_id: str = ""
     public_base_url: str = ""
     api_token: str = ""
     host: str = "0.0.0.0"
@@ -132,6 +135,11 @@ class AppConfig:
         parsed = urlparse(visia_api_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise RuntimeError("LUNAVISIA_API_URL must be a valid HTTP(S) URL.")
+        placeholder_cover_id = os.getenv("LUNAVIBIA_PLACEHOLDER_COVER_ID", "").strip().lower()
+        if placeholder_cover_id and not re.fullmatch(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", placeholder_cover_id
+        ):
+            raise RuntimeError("LUNAVIBIA_PLACEHOLDER_COVER_ID must be a Luna Visia image ID (a UUID).")
         track_dir = Path(os.getenv("TRACK_DIR", "/data/tracks"))
         public_base_url = os.getenv("LUNAVIBIA_PUBLIC_BASE_URL", "").strip().rstrip("/")
         if public_base_url:
@@ -154,6 +162,7 @@ class AppConfig:
             ollama_url=ollama_url,
             caption_model=caption_model,
             visia_api_url=visia_api_url,
+            placeholder_cover_id=placeholder_cover_id,
             public_base_url=public_base_url,
             api_token=api_token,
         )

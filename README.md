@@ -87,9 +87,12 @@ to loop it.
 A track's cover is an image stored in Luna Visia. `set_track_cover` (or **Cover art**
 in a track's dialog) accepts only Visia's immutable image-ID URLs
 (`.../api/public/images/<image-id>`), checks that the image exists and is visible in
-Visia, and stores Visia's canonical public URL. The UI fetches covers from Visia over
-`luna_sentia_network`; tracks without one show a generated placeholder. Visia must be
-running for covers to be set or shown.
+Visia, and stores Visia's canonical public URL. The model always searches Visia for an image that suits
+the track before uploading and passes it to `upload_track` as `cover_url`; when none
+fits, it omits the URL and the track gets the Luna Vibia audio placeholder, an image stored in Visia itself (set its image ID
+with `LUNAVIBIA_PLACEHOLDER_COVER_ID`; while that is blank the cover stays empty). The UI
+fetches covers from Visia over `luna_sentia_network`; tracks without one show a generated
+placeholder. Visia must be running for covers to be set or shown.
 
 ## Start
 
@@ -118,6 +121,7 @@ LUNAVIBIA_API_TOKEN=replace-with-a-random-value-of-at-least-32-characters
 LUNAVIBIA_ALLOWED_EMAILS=you@example.com
 MCP_PUBLIC_URL=https://vibia-mcp.example.com
 PULSE_SOCKET=/mnt/wslg/PulseServer
+LUNAVIBIA_PLACEHOLDER_COVER_ID=
 LUNA_SSO_URL=https://auth.example.com
 LUNA_SSO_INTERNAL_URL=http://luna-sentia-auth:8000
 ```
@@ -162,10 +166,10 @@ listed. Restart Vibia after the host's sound server restarts (for example after
 
 ### Add and change
 
-- `upload_track` - add MP3, WAV, FLAC, OGG/Opus, or M4A from a chat attachment (`file`), `track_url`, or `content_base64`, with optional `title`, `artist`, and generator `notes`. Names are corrected and deduplicated like Visia's.
+- `upload_track` - add MP3, WAV, FLAC, OGG/Opus, or M4A from a chat attachment (`file`), `track_url`, or `content_base64`, with optional `title`, `artist`, and generator `notes`, and a Visia `cover_url` (the audio placeholder when omitted). Names are corrected and deduplicated like Visia's.
 - `create_upload_link` - a single-use HTTPS link to POST a local file to (up to 200 MiB).
 - `modify_track` - replace a track's audio; title, artist, notes, and cover are kept.
-- `set_track_cover` - set or clear the cover to a Luna Visia image.
+- `set_track_cover` - set the cover to a Luna Visia image, or to the audio placeholder when none fits.
 - `update_track_metadata` / `update_tracks_metadata` - edit captions and tags.
 - `rename_track` / `rename_tracks`, `set_favorite_tracks`, `remove_track`.
 

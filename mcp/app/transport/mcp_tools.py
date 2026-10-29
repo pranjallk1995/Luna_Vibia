@@ -338,10 +338,10 @@ class VibiaMCPTools:
             self.service.uploads,
         )
 
-        def upload(name, base64_data=None, track_url=None, file=None, title=None, artist=None, notes=None):
+        def upload(name, base64_data, track_url, file, title, artist, notes, cover_url):
             source = sources.resolve(base64_data, track_url, file.model_dump() if file else None)
             given = {"title": title, "artist": artist, "notes": notes}
-            return visible.upload(name or source.suggested_name, source.data, given)
+            return visible.upload_with_cover(name or source.suggested_name, source.data, given, cover_url)
 
         @server.tool(meta=FILE_PARAMS_META)
         async def upload_track(
@@ -352,6 +352,7 @@ class VibiaMCPTools:
             title: str | None = None,
             artist: str | None = None,
             notes: str | None = None,
+            cover_url: str | None = None,
         ) -> dict[str, Any]:
             """Add a music track (MP3, WAV, FLAC, OGG/Opus, M4A); it is analyzed and captioned.
 
@@ -364,15 +365,22 @@ class VibiaMCPTools:
 
             When you generated the music, pass the prompt or style you used as
             notes (and title/artist if any): it is stored with the track and
-            sharpens its caption and tags. Afterwards, give it cover art from Luna
-            Visia with set_track_cover.
+            sharpens its caption and tags.
+
+            Always search Luna Visia for cover art that suits the track (its mood,
+            genre, or title) before uploading, and pass the public_url it returns
+            as cover_url (an immutable .../api/public/images/<image-id> URL). If
+            that search finds no suitable image, omit cover_url: the track then
+            gets the Luna Vibia audio placeholder stored in Visia. Never invent a
+            URL or pass a filename-based URL or data URI; a supplied URL is checked
+            against Luna Visia and the upload is rejected if it is not found.
 
             name is optional. The extension is corrected to match the audio
             format, a taken name gets a numeric suffix, and an exact duplicate of a
             stored track returns status "duplicate" instead of a second copy.
             Maximum size: 200 MiB. Analysis takes about half a minute.
             """
-            return await offload(upload, name, content_base64, track_url, file, title, artist, notes)
+            return await offload(upload, name, content_base64, track_url, file, title, artist, notes, cover_url)
 
         @server.tool()
         def create_upload_link(name: str, replace: bool = False) -> dict[str, Any]:
@@ -382,6 +390,8 @@ class VibiaMCPTools:
             the track as a file: POST its bytes to upload_url, for example with the
             returned curl_example. The link expires after 15 minutes. With
             replace=true, name must be an existing visible track to overwrite.
+            After a new upload, give it a cover with set_track_cover: search Luna
+            Visia first, and omit cover_url for the audio placeholder if none fits.
             """
             return uploads.create_link(name, replace)
 
@@ -407,15 +417,16 @@ class VibiaMCPTools:
 
         @server.tool()
         async def set_track_cover(name: str, cover_url: str | None = None) -> dict[str, Any]:
-            """Set a track's cover art to a Luna Visia image, or clear it with no cover_url.
+            """Set a track's cover art to a Luna Visia image, or to the audio placeholder.
 
-            Search Luna Visia for an image that suits the track (or create one and
-            store it there), then pass the public_url Visia returns: an immutable
-            .../api/public/images/<image-id> URL. It is checked against Luna Visia
-            and rejected if the image is missing or hidden. Never pass a
-            filename-based URL or data URI.
+            Always search Luna Visia first for an image that suits the track (its
+            mood, genre, or title), then pass the public_url Visia returns: an
+            immutable .../api/public/images/<image-id> URL. It is checked against
+            Luna Visia and rejected if the image is missing or hidden. If no image
+            fits, omit cover_url: the track then shows the Luna Vibia audio
+            placeholder stored in Visia. Never pass a filename-based URL or data URI.
             """
-            return {"status": "cover_updated", **await offload(visible.set_cover, name, cover_url)}
+            return {"status": "cover_updated", **await offload(visible.set_cover, name, cover_url, True)}
 
         @server.tool()
         def update_track_metadata(

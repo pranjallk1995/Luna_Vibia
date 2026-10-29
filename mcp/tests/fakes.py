@@ -274,8 +274,8 @@ class FakeVisia(VisiaImageCatalog):
     VISIBLE_ID = "11111111-2222-3333-4444-555555555555"
     HIDDEN_ID = "99999999-8888-7777-6666-555555555555"
 
-    def __init__(self) -> None:
-        super().__init__("http://visia.test")
+    def __init__(self, placeholder_image_id: str = "") -> None:
+        super().__init__("http://visia.test", placeholder_image_id)
 
     def images(self):
         return [
