@@ -34,7 +34,7 @@ class LunaVibiaApplication:
                 config.caption_model,
                 MetadataRules(config.max_tags, config.search_stop_words),
             ),
-            ClapEncoder(),
+            ClapEncoder(device=config.clap_device),
             VisiaImageCatalog(config.visia_api_url, config.placeholder_cover_id),
             SpeakerPlayer(
                 WindowsSpeakerHelper(config.speaker_helper_url, config.api_token)

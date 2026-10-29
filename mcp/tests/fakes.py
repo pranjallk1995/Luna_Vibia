@@ -29,6 +29,13 @@ class FakeTrackRepository:
 
     def __init__(self) -> None:
         self.rows = {}
+        self.beat_maps = {}
+
+    def beats(self, content_sha256):
+        return self.beat_maps.get(content_sha256)
+
+    def save_beats(self, content_sha256, beat_map):
+        self.beat_maps.setdefault(content_sha256, dict(beat_map))
 
     def upsert(self, record, public_base_url):
         previous = self.rows.get(record.name, {})

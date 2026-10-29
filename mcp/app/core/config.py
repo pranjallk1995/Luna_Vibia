@@ -38,6 +38,11 @@ class AppConfig:
     CLAP_SAMPLE_RATE: ClassVar[int] = 48_000
     CLAP_CLIP_SECONDS: ClassVar[int] = 10
     CLAP_MAX_CLIPS: ClassVar[int] = 6
+    CLAP_DEVICES: ClassVar[frozenset[str]] = frozenset({"auto", "cuda", "cpu"})
+    # A CLAP call that finds the GPU full waits for Docling to finish its document and
+    # move aside, trying this many times (1 s, then 2 s, ... apart) before using the CPU.
+    CLAP_GPU_ATTEMPTS: ClassVar[int] = 3
+    CLAP_GPU_RETRY_SECONDS: ClassVar[float] = 1.0
     # Tempo, key, and energy are measured on this much audio from the middle of a track.
     FEATURE_SAMPLE_RATE: ClassVar[int] = 22_050
     FEATURE_MAX_SECONDS: ClassVar[int] = 120
@@ -123,6 +128,8 @@ class AppConfig:
     mcp_public_url: str = ""
     # The WSL host's Windows speaker helper ("" = list the PulseAudio sinks directly).
     speaker_helper_url: str = ""
+    # Where CLAP runs: auto uses a CUDA GPU when present.
+    clap_device: str = "auto"
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -166,7 +173,11 @@ class AppConfig:
             parsed_helper_url = urlparse(speaker_helper_url)
             if parsed_helper_url.scheme not in {"http", "https"} or not parsed_helper_url.netloc:
                 raise RuntimeError("LUNAVIBIA_SPEAKER_HELPER_URL must be a valid HTTP(S) URL.")
+        clap_device = os.getenv("CLAP_DEVICE", "auto").strip().lower()
+        if clap_device not in cls.CLAP_DEVICES:
+            raise RuntimeError(f"CLAP_DEVICE must be one of: {', '.join(sorted(cls.CLAP_DEVICES))}.")
         return cls(
+            clap_device=clap_device,
             speaker_helper_url=speaker_helper_url,
             mcp_public_url=mcp_public_url,
             track_dir=track_dir,

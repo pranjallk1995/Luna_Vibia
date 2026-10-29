@@ -109,6 +109,28 @@ class MusicFeatures:
         )
         return f"{cls.KEYS[best[1]]} {best[2]}"
 
+    @staticmethod
+    def beat_map(samples: np.ndarray, sample_rate: int) -> Row:
+        """Every beat of the whole track (seconds) and how strongly each one hits (0-1).
+
+        Strength is the onset strength at the beat, relative to the track's strong
+        beats (95th percentile), so a quiet track's accents still reach 1.
+        """
+        import librosa  # heavy import, only needed while analyzing
+
+        onset = librosa.onset.onset_strength(y=samples, sr=sample_rate)
+        tempo, frames = librosa.beat.beat_track(onset_envelope=onset, sr=sample_rate)
+        tempo = float(np.atleast_1d(tempo)[0])
+        times = librosa.frames_to_time(frames, sr=sample_rate)
+        strength = onset[frames] if len(frames) else np.array([])
+        scale = float(np.percentile(strength, 95)) if strength.size else 0.0
+        strength = np.clip(strength / scale, 0, 1) if scale > 0 else np.zeros_like(strength)
+        return {
+            "tempo_bpm": round(tempo, 1) if tempo > 0 else None,
+            "beats": [round(float(value), 3) for value in times],
+            "strengths": [round(float(value), 2) for value in strength],
+        }
+
     def measure(self, samples: np.ndarray, sample_rate: int) -> Row:
         import librosa  # heavy import, only needed while analyzing
 

@@ -261,7 +261,11 @@ class SpeakerPlayer:
         with self._lock:
             state = dict(self._state)
             if state["status"] == "playing":
-                state["position_seconds"] = round(time.monotonic() - self._track_started, 1)
+                position = time.monotonic() - self._track_started
+                state["position_seconds"] = round(position, 1)
+                # When the current track's second 0 played, as a Unix time: other apps on
+                # this host (Luna Lumia's beat pulses) follow the track with their own clock.
+                state["started_at"] = round(time.time() - position, 3)
             return state
 
     def output(self, playing_on: Row | None = None) -> Row | None:

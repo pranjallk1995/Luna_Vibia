@@ -56,6 +56,14 @@ CREATE TABLE IF NOT EXISTS vault_security (
     iterations integer NOT NULL CHECK (iterations >= 100000),
     updated_at timestamptz NOT NULL DEFAULT now()
 );
+-- Beat maps for Luna Lumia's light pulses, worked out the first time a track is asked for.
+CREATE TABLE IF NOT EXISTS track_beats (
+    content_sha256 char(64) PRIMARY KEY,
+    tempo_bpm real,
+    beats real[] NOT NULL,
+    strengths real[] NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
 CREATE TABLE IF NOT EXISTS vault_config (
     singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
     public_base_url text NOT NULL,

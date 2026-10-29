@@ -10,7 +10,7 @@ RUN apt-get update \
 # uv installs the requirements; its cache mount reuses downloads across rebuilds.
 COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /bin/uv
 ENV UV_LINK_MODE=copy
-# requirements.txt adds PyTorch's CPU-only index for torch; let uv pick the best
+# requirements.txt adds the PyTorch CUDA 13.0 index for torch; let uv pick the best
 # version across both indexes, since that index also carries old copies of
 # common packages.
 ENV UV_INDEX_STRATEGY=unsafe-best-match

@@ -4,11 +4,15 @@ services:
     image: ghcr.io/pranjallk1995/luna-vibia-mcp:latest
     working_dir: /workspace/mcp
     restart: unless-stopped
+    # CLAP runs on the GPU (CLAP_DEVICE=auto picks it when present). Remove this line
+    # to run on CPU on a machine without one.
+    gpus: all
     environment:
       DATABASE_URL: postgresql://lunavibia:${POSTGRES_PASSWORD:-lunavibia-dev}@luna-sentia-db:5432/lunavibia
       TRACK_DIR: /data/tracks
       OLLAMA_URL: ${OLLAMA_URL:-http://luna-sentia-ollama:11434}
       CAPTION_MODEL: ${CAPTION_MODEL:-qwen3-vl:8b-instruct}
+      CLAP_DEVICE: ${CLAP_DEVICE:-auto}
       LUNAVISIA_API_URL: ${LUNAVISIA_API_URL:-http://luna-visia-mcp:8000}
       LUNAVIBIA_PLACEHOLDER_COVER_ID: ${LUNAVIBIA_PLACEHOLDER_COVER_ID:-}
       LUNAVIBIA_PUBLIC_BASE_URL: ${LUNAVIBIA_PUBLIC_BASE_URL}

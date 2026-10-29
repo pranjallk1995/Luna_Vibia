@@ -268,7 +268,11 @@ class VibiaHTTPRoutes:
             output = request.query_params.get("output", "1") != "0"
             return await anyio.to_thread.run_sync(playback_service.status, output)
 
+        async def beats(request: Request):
+            return await anyio.to_thread.run_sync(playback_service.beats, self.name(request))
+
         self.route("GET", "/api/playback", playback)
+        self.route("GET", "/api/tracks/{name}/beats", beats)
 
     def _register_hidden_tracks(self) -> None:
         hidden = self.service.hidden

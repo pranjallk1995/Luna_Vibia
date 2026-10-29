@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import threading
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -22,6 +23,7 @@ from app.core.models import TrackAnalysis, TrackRecord, MetadataChange, Metadata
 from app.data.repositories import TrackRepository, PublicURLRepository, Row
 from app.data.storage import TrackStorage
 from app.services.uploads import UploadLinkStore
+from app.integrations.audio import AudioProbe, MusicFeatures
 from app.integrations.captioning import OllamaCaptioner
 from app.integrations.clap import ClapEncoder
 from app.integrations.speakers import Speaker, SpeakerPlayer
@@ -886,6 +888,7 @@ class PlaybackService:
         self.visible = visible
         self.player = player
         self.max_tracks = max_tracks
+        self._beats_lock = threading.Lock()
 
     def speakers(self) -> dict[str, Any]:
         speakers = self.player.speakers()
@@ -957,6 +960,23 @@ class PlaybackService:
                 return status
             status["track"] = {field: row.get(field) for field in self.TRACK_FIELDS}
         return status
+
+    def beats(self, name: str) -> dict[str, Any]:
+        """A visible track's beat map: beat times (seconds) and strengths, for light pulses.
+
+        Worked out from the whole track the first time it is asked for (about two
+        seconds), then stored by file content.
+        """
+        row = self.visible.get(name)
+        sha = row["content_sha256"]
+        with self._beats_lock:
+            beat_map = self.visible.tracks.beats(sha)
+            if beat_map is None:
+                data = self.visible.path(name).read_bytes()
+                samples = AudioProbe().decode(data, AppConfig.FEATURE_SAMPLE_RATE)
+                beat_map = MusicFeatures.beat_map(samples, AppConfig.FEATURE_SAMPLE_RATE)
+                self.visible.tracks.save_beats(sha, beat_map)
+        return {"name": name, "duration_seconds": row.get("duration_seconds"), **beat_map}
 
 
 class VibiaService:

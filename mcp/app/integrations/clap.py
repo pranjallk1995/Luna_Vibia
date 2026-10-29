@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import threading
+import time
 
 import numpy as np
 
 from app.core.config import AppConfig
+
+logger = logging.getLogger(__name__)
 
 # Words CLAP scores every track against; the best matches per group become hints for
 # the caption model. Phrased as CLAP was trained: short descriptions of music.
@@ -35,16 +39,25 @@ VOCABULARY: dict[str, tuple[str, ...]] = {
 
 
 class ClapEncoder:
-    """Embed audio and text into CLAP's shared space, on the CPU.
+    """Embed audio and text into CLAP's shared space, on the GPU when there is one.
 
     The model loads on first use and stays loaded. A track is heard as up to
     ``CLAP_MAX_CLIPS`` 10-second clips spread over its length; their embeddings
     are averaged, so a long track is represented by its whole arc, not its intro.
+
+    With ``device`` ``auto`` or ``cuda`` the model runs on a CUDA GPU when torch
+    sees one, in full precision so embeddings match those made on the CPU. It
+    keeps its place there: Luna Lexia's Docling moves to the CPU when the GPU is
+    short. If the GPU still runs out of memory, a call is retried a few times,
+    then run on a CPU copy of the model.
     """
 
-    def __init__(self, model_name: str = AppConfig.CLAP_MODEL) -> None:
+    def __init__(self, model_name: str = AppConfig.CLAP_MODEL, device: str = "auto") -> None:
         self.model_name = model_name
+        self.requested_device = device
+        self.device = "cpu"
         self._model = None
+        self._cpu_model = None
         self._processor = None
         self._lock = threading.Lock()
         self._vocabulary: dict[str, tuple[tuple[str, ...], np.ndarray]] | None = None
@@ -57,8 +70,36 @@ class ClapEncoder:
 
                 torch.set_num_threads(max(1, min(4, torch.get_num_threads())))
                 self._processor = ClapProcessor.from_pretrained(self.model_name)
-                self._model = ClapModel.from_pretrained(self.model_name).eval()
+                model = ClapModel.from_pretrained(self.model_name).eval()
+                if self.requested_device != "cpu" and torch.cuda.is_available():
+                    self.device = "cuda"
+                self._model = model.to(self.device)
             return self._model, self._processor
+
+    def _cpu_copy(self):
+        with self._lock:
+            if self._cpu_model is None:
+                from transformers import ClapModel
+
+                self._cpu_model = ClapModel.from_pretrained(self.model_name).eval()
+            return self._cpu_model
+
+    def _run(self, method: str, inputs) -> np.ndarray:
+        """Call ``method`` of the model on ``inputs``, on its device, with the CPU as a last resort."""
+        import torch
+
+        model, _ = self._load()
+        for attempt in range(AppConfig.CLAP_GPU_ATTEMPTS):
+            try:
+                with torch.no_grad():
+                    return self._features(getattr(model, method)(**inputs.to(self.device)))
+            except torch.cuda.OutOfMemoryError:
+                torch.cuda.empty_cache()
+                if attempt + 1 < AppConfig.CLAP_GPU_ATTEMPTS:
+                    time.sleep(AppConfig.CLAP_GPU_RETRY_SECONDS * (attempt + 1))
+        logger.warning("The GPU stayed out of memory; running CLAP on the CPU for this call.")
+        with torch.no_grad():
+            return self._features(getattr(self._cpu_copy(), method)(**inputs.to("cpu")))
 
     @staticmethod
     def clips(samples: np.ndarray) -> list[np.ndarray]:
@@ -74,7 +115,7 @@ class ClapEncoder:
     def _features(output) -> np.ndarray:
         """The projected embeddings, whether a call returns a tensor or (Transformers 5) an output object."""
         tensor = output if hasattr(output, "numpy") else output.pooler_output
-        return tensor.detach().numpy()
+        return tensor.detach().float().cpu().numpy()
 
     @staticmethod
     def _unit(vectors: np.ndarray) -> np.ndarray:
@@ -83,21 +124,15 @@ class ClapEncoder:
 
     def embed_audio(self, samples: np.ndarray) -> list[float]:
         """One unit-length embedding for a track, from 48 kHz mono samples."""
-        import torch
-
-        model, processor = self._load()
-        with torch.no_grad():
-            inputs = processor(audio=self.clips(samples), sampling_rate=AppConfig.CLAP_SAMPLE_RATE, return_tensors="pt")
-            features = self._features(model.get_audio_features(**inputs))
+        _, processor = self._load()
+        inputs = processor(audio=self.clips(samples), sampling_rate=AppConfig.CLAP_SAMPLE_RATE, return_tensors="pt")
+        features = self._run("get_audio_features", inputs)
         return self._unit(self._unit(features).mean(axis=0)).round(6).tolist()
 
     def embed_texts(self, texts: list[str]) -> np.ndarray:
-        import torch
-
-        model, processor = self._load()
-        with torch.no_grad():
-            inputs = processor(text=texts, return_tensors="pt", padding=True)
-            return self._unit(self._features(model.get_text_features(**inputs)))
+        _, processor = self._load()
+        inputs = processor(text=texts, return_tensors="pt", padding=True)
+        return self._unit(self._run("get_text_features", inputs))
 
     def embed_text(self, text: str) -> list[float]:
         """A unit-length embedding for a description such as "music for evening coffee"."""

@@ -1,10 +1,10 @@
---extra-index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://download.pytorch.org/whl/cu130
 mcp==1.30.0
 pydantic==2.11.7
 langgraph==1.2.17
 psycopg[binary]==3.2.10
 httpx==0.28.1
 numpy==2.3.4
-torch==2.15.0+cpu
+torch==2.14.1+cu130
 transformers==5.21.1
 librosa==1.0.0

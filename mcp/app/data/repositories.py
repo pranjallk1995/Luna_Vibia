@@ -172,6 +172,21 @@ class TrackRepository(Repository):
         with self.database.connect() as connection:
             connection.execute("DELETE FROM track_metadata WHERE name = %s", (name,))
 
+    def beats(self, content_sha256: str) -> Row | None:
+        """The stored beat map of a file, if it was worked out before."""
+        return self.fetch_one(
+            "SELECT tempo_bpm, beats, strengths FROM track_beats WHERE content_sha256 = %s",
+            (content_sha256,),
+        )
+
+    def save_beats(self, content_sha256: str, beat_map: Row) -> None:
+        with self.database.connect() as connection:
+            connection.execute(
+                """INSERT INTO track_beats (content_sha256, tempo_bpm, beats, strengths)
+                VALUES (%s, %s, %s, %s) ON CONFLICT (content_sha256) DO NOTHING""",
+                (content_sha256, beat_map["tempo_bpm"], beat_map["beats"], beat_map["strengths"]),
+            )
+
     def rename(self, name: str, new_name: str) -> Row:
         """Rename one visible record while preserving all other fields."""
         vector = search_vector_sql("%s", "caption", "array_to_string(tags, ' ')")

@@ -745,6 +745,21 @@ class PlaybackToolTests(ServerTestCase):
         with self.assertRaises(ToolError):
             self.call("switch_speaker", {"speaker": "desk"})
 
+    def test_beat_map_is_worked_out_once_and_status_says_when_the_track_started(self) -> None:
+        with self.client() as client:
+            first = client.get("/api/tracks/one.wav/beats").json()
+        self.assertEqual(first["name"], "one.wav")
+        self.assertEqual(len(first["beats"]), len(first["strengths"]))
+        self.assertEqual(len(self.repository.beat_maps), 1)
+        with patch("app.integrations.audio.MusicFeatures.beat_map", side_effect=AssertionError("recomputed")):
+            self.assertEqual(self.service.playback.beats("one.wav")["beats"], first["beats"])
+        self.connect(self.LOUNGE)
+        self.call("play_tracks", {"names": ["one.wav"]})
+        player = self.service.playback.player
+        player._track_started = time.monotonic() - 30
+        status = self.call("get_playback_status", {})
+        self.assertAlmostEqual(time.time() - status["started_at"], 30, delta=1)
+
     def test_windows_helper_reads_the_current_output_quickly(self) -> None:
         helper = WindowsSpeakerHelper("http://helper", "token")
         output = {"id": "x", "name": "Echo Dot-PL7", "description": "Speakers (Echo Dot-PL7)", "bluetooth": True}
