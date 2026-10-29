@@ -9,8 +9,8 @@
 
 ## Store, describe, and find music with LLMs
 
-> **Work in progress:** Luna Vibia is a local-first music library under active development. A
-> media player that plays Vibia's playlists on chosen speakers comes later.
+> **Work in progress:** Luna Vibia is a local-first music library under active development. It
+> can already play its tracks on the host's speakers when an LLM asks.
 
 Luna Vibia is the music counterpart of [Luna Visia](https://github.com/pranjallk1995/Luna_Visia)
 (images) and [Luna Lexia](https://github.com/pranjallk1995/Luna_Lexia) (documents). An
@@ -18,6 +18,10 @@ assistant that generates music stores it here; every track is listened to, measu
 captioned, and tagged locally, and embedded so that a request such as "something for
 evening coffee" finds the tracks that sound right, even when no stored word matches.
 Cover art comes from Luna Visia.
+
+<p align="center">
+  <img src="docs/showcase.png" alt="Luna Vibia library playing a looped sleep playlist on an Echo Dot, started from a chat assistant">
+</p>
 
 ## Architecture
 
