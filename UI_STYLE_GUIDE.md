@@ -50,7 +50,7 @@ variables.
 | Luna Vibia | `ui/assets/lunavibia_logo.png` | PNG, 8-bit RGBA | 1254 x 1254 px | 619,255 bytes | 5.75rem x 4.5rem | 4rem x 3.4rem |
 | Luna Vita | `ui/assets/lunavita_logo.png` | PNG, 8-bit RGBA | 1254 x 1254 px | 637,054 bytes | 5.75rem x 4.5rem | 4.25rem x 3.5rem |
 | Luna Lumia | `ui/assets/lunalumia_logo.png` | PNG, 8-bit RGBA | 1254 x 1254 px | 577,562 bytes | 5.75rem x 4.5rem | 4.25rem x 3.5rem |
-| Luna Unia | `ui/assets/lunaunia_logo.png` | PNG, 8-bit RGBA | 1254 x 1254 px | 800,647 bytes | 5.75rem x 4.5rem | 4rem x 3.4rem |
+| Luna Unia | `ui/assets/lunaunia_logo.png` | PNG, 8-bit RGBA, transparent background | 1254 x 1254 px | 146,697 bytes | 5.75rem x 4.5rem | 4rem x 3.4rem |
 
 Logos are embedded as base64 `data:` URIs in an `<img class="lv-mark">` and
 render with `object-fit: contain`, so the square source keeps its aspect ratio
