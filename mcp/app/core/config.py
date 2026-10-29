@@ -22,6 +22,9 @@ class AppConfig:
     VISIA_TIMEOUT_SECONDS: ClassVar[float] = 10.0
     # ffprobe and ffmpeg on one file; a long file still decodes in seconds.
     AUDIO_TOOL_TIMEOUT_SECONDS: ClassVar[int] = 120
+    # Listing the host's speakers asks its sound server; stopping waits for ffmpeg to exit.
+    SPEAKER_LIST_TIMEOUT_SECONDS: ClassVar[int] = 10
+    PLAYBACK_STOP_TIMEOUT_SECONDS: ClassVar[int] = 5
     # CLAP hears 10-second, 48 kHz clips; a track is heard as up to this many clips
     # spread over its length, and their embeddings are averaged. The music-only
     # laion/larger_clap_music checkpoint scores every description near zero under
@@ -71,6 +74,8 @@ class AppConfig:
     # ZIPs are served as download links, so they are not bound by MCP message size.
     max_archive_tracks: int = 200
     max_archive_bytes: int = 4 * 1024 * 1024 * 1024
+    # Files play from disk on the host's speakers, so only the queue length is bounded.
+    max_play_tracks: int = 200
     download_ttl_seconds: int = 24 * 60 * 60
     max_download_store_bytes: int = 20 * 1024 * 1024 * 1024
     upload_ttl_seconds: int = 15 * 60

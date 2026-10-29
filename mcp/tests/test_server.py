@@ -19,6 +19,7 @@ from fakes import (
     FakeCaptioner,
     FakeEncoder,
     FakePublicURLRepository,
+    FakeSpeakerPlayer,
     FakeTrackRepository,
     FakeVisia,
     wav_bytes,
@@ -32,6 +33,7 @@ from app.transport.http_routes import VibiaHTTPRoutes
 from app.transport.mcp_tools import VibiaMCPTools
 from app.services.media import TrackArchive, display_name
 from app.integrations.remote import TrackSourceResolver
+from app.integrations.speakers import Speaker, SpeakerPlayer
 from app.services.application import VibiaService
 
 
@@ -545,6 +547,68 @@ class DownloadRouteTests(ServerTestCase):
         os.utime(leftover, (old, old))
         store.purge()
         self.assertFalse(leftover.exists())
+
+
+class PlaybackToolTests(ServerTestCase):
+    LOUNGE = Speaker("alsa_output.lounge", "Lounge Speaker", True)
+    DESK = Speaker("bluez_output.desk", "Desk Headphones", False)
+
+    def connect(self, *speakers: Speaker) -> FakeSpeakerPlayer:
+        player = FakeSpeakerPlayer(list(speakers))
+        self.service.playback.player = player
+        return player
+
+    def test_sink_list_is_parsed_with_default_marked(self) -> None:
+        output = "Auto-detected sinks for pulse:\n* RDPSink [RDP Sink] (none)\n  usb.out [USB Audio [2]] (none)\n"
+        self.assertEqual(
+            SpeakerPlayer.parse_sinks(output),
+            [Speaker("RDPSink", "RDP Sink", True), Speaker("usb.out", "USB Audio [2]", False)],
+        )
+        self.assertEqual(SpeakerPlayer.parse_sinks("Cannot list sinks: Generic error\n"), [])
+
+    def test_single_speaker_plays_without_asking(self) -> None:
+        player = self.connect(self.LOUNGE)
+        result = self.call("play_tracks", {"names": ["one.wav", "two.wav", "one.wav"], "loop": True})
+        self.assertEqual((result["status"], result["tracks"], result["loop"]), ("playing", ["one.wav", "two.wav"], True))
+        queue, speaker, _ = player.played[0]
+        self.assertEqual((speaker, queue[0]), (self.LOUNGE, ("one.wav", self.root / "one.wav")))
+
+    def test_several_speakers_ask_which_one_when_unspecified(self) -> None:
+        player = self.connect(self.LOUNGE, self.DESK)
+        result = self.call("play_tracks", {"names": ["one.wav"]})
+        self.assertEqual(result["status"], "choose_speaker")
+        self.assertEqual([option["name"] for option in result["speakers"]], [self.LOUNGE.name, self.DESK.name])
+        self.assertEqual(player.played, [])
+
+    def test_speaker_is_matched_by_name_or_description(self) -> None:
+        player = self.connect(self.LOUNGE, self.DESK)
+        self.call("play_tracks", {"names": ["one.wav"], "speaker": "desk headphones"})
+        self.call("play_tracks", {"names": ["one.wav"], "speaker": self.LOUNGE.name})
+        self.assertEqual([speaker for _, speaker, _ in player.played], [self.DESK, self.LOUNGE])
+
+    def test_unknown_or_ambiguous_speaker_lists_options(self) -> None:
+        self.connect(self.LOUNGE, self.DESK)
+        with self.assertRaisesRegex(ToolError, "matches no speaker.*Lounge Speaker"):
+            self.call("play_tracks", {"names": ["one.wav"], "speaker": "kitchen"})
+        with self.assertRaisesRegex(ToolError, "matches several speakers"):
+            self.call("play_tracks", {"names": ["one.wav"], "speaker": "_output"})
+
+    def test_hidden_tracks_cannot_be_played(self) -> None:
+        player = self.connect(self.LOUNGE)
+        self.service.hidden.set_hidden(["one.wav"], True)
+        with self.assertRaises(ToolError):
+            self.call("play_tracks", {"names": ["one.wav"]})
+        self.assertEqual(player.played, [])
+
+    def test_list_speakers_and_status(self) -> None:
+        self.connect(self.LOUNGE, self.DESK)
+        speakers = self.call("list_speakers", {})
+        self.assertEqual((speakers["count"], speakers["speakers"][0]["default"]), (2, True))
+        self.assertEqual(self.call("get_playback_status", {}), {"status": "idle"})
+        self.call("play_tracks", {"names": ["two.wav"], "speaker": "lounge"})
+        self.assertEqual(self.call("get_playback_status", {})["now_playing"], "two.wav")
+        self.assertEqual(self.call("stop_playback", {}), {"status": "stopped"})
+        self.assertEqual(self.call("get_playback_status", {}), {"status": "idle"})
 
 
 class HTTPRouteTests(ServerTestCase):

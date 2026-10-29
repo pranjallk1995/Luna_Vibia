@@ -138,7 +138,7 @@ class TrackPreviewDialog:
 
     def _render_cover_editor(self, track_path: Path, metadata: dict) -> None:
         key = f"cover_{track_path.name}"
-        with st.popover("Cover art", icon=":material/image:"):
+        with st.container(key="lv_cover_editor"), st.popover("Cover art", icon=":material/image:"):
             st.caption("Paste a Luna Visia image link (…/api/public/images/<id>), or clear it.")
             url = st.text_input("Visia image URL", value=metadata.get("cover_url") or "", key=key,
                                 label_visibility="collapsed")

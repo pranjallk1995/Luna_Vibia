@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 
 from app.core.models import TrackDescription
 from app.data.repositories import PUBLIC_TRACK_PATH
+from app.integrations.speakers import Speaker, SpeakerPlayer
 from app.integrations.visia import VisiaImageCatalog
 
 SUMMARY_KEYS = (
@@ -283,6 +284,24 @@ class FakeVisia(VisiaImageCatalog):
             {"image_id": self.HIDDEN_ID, "hidden": True,
              "public_url": f"https://visia.example.test/api/public/images/{self.HIDDEN_ID}"},
         ]
+
+
+class FakeSpeakerPlayer(SpeakerPlayer):
+    """A host with fixed speakers that records each queue instead of playing it."""
+
+    def __init__(self, speakers: list[Speaker]) -> None:
+        super().__init__()
+        self.connected = speakers
+        self.played: list[tuple[list[tuple[str, Path]], Speaker, bool]] = []
+
+    def speakers(self):
+        return list(self.connected)
+
+    def play(self, queue, speaker, loop):
+        self.played.append((queue, speaker, loop))
+        self._state = {"status": "playing", "speaker": speaker.as_row(), "tracks": [name for name, _ in queue],
+                       "loop": loop, "now_playing": queue[0][0]}
+        return self.status()
 
 
 def tone(hertz=440.0, seconds=2.0, rate=48_000):

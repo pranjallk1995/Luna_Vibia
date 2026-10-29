@@ -281,6 +281,16 @@ class LunaStyle:
                 margin-top:-.4rem!important; margin-right:0!important; margin-bottom:0!important;
                 padding:.4rem!important; border-radius:.65rem!important;
             }
+            .st-key-lv_cover_editor div[data-testid="stPopover"] button,
+            .st-key-lv_cover_editor div[data-testid="stPopover"] button:hover,
+            .st-key-lv_cover_editor div[data-testid="stPopover"] button:focus-visible {
+                width:auto!important; min-width:0!important; padding:0 .75rem!important;
+                border:1px solid var(--lv-border)!important; border-radius:.65rem!important;
+            }
+            .st-key-lv_cover_editor div[data-testid="stPopover"] button p { white-space:nowrap; }
+            div[data-testid="stPopoverBody"]:has([class*="st-key-cover_"]) {
+                width:22rem!important; min-width:22rem!important; max-width:min(22rem,90vw)!important;
+            }
             div[data-testid="stPopoverBody"] div[data-testid="stHorizontalBlock"] {
                 gap:.35rem!important; align-items:center!important;
             }

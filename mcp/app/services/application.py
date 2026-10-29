@@ -24,6 +24,7 @@ from app.data.storage import TrackStorage
 from app.services.uploads import UploadLinkStore
 from app.integrations.captioning import OllamaCaptioner
 from app.integrations.clap import ClapEncoder
+from app.integrations.speakers import Speaker, SpeakerPlayer
 from app.integrations.visia import VisiaImageCatalog
 
 
@@ -843,6 +844,63 @@ class PlaylistService:
         }
 
 
+class PlaybackService:
+    """Play visible tracks on one of the host's speakers.
+
+    With several speakers connected and none named, nothing plays: the caller
+    gets the speaker list back so the user can choose.
+    """
+
+    def __init__(self, visible: VisibleTrackService, player: SpeakerPlayer, max_tracks: int) -> None:
+        self.visible = visible
+        self.player = player
+        self.max_tracks = max_tracks
+
+    def speakers(self) -> dict[str, Any]:
+        speakers = self.player.speakers()
+        return {"count": len(speakers), "speakers": [speaker.as_row() for speaker in speakers]}
+
+    @staticmethod
+    def match(speakers: list[Speaker], requested: str) -> Speaker:
+        """Find a speaker by exact name, else by a unique case-insensitive partial name or description."""
+        exact = [speaker for speaker in speakers if speaker.name == requested]
+        query = requested.strip().lower()
+        partial = [
+            speaker
+            for speaker in speakers
+            if query and (query in speaker.name.lower() or query in speaker.description.lower())
+        ]
+        matches = exact or partial
+        if len(matches) == 1:
+            return matches[0]
+        options = ", ".join(f"{speaker.name} ({speaker.description})" for speaker in speakers)
+        problem = "matches several speakers" if matches else "matches no speaker"
+        raise ValueError(f"Speaker {requested!r} {problem}. Available: {options}.")
+
+    def play(self, names: list[str], speaker: str | None = None, loop: bool = False) -> dict[str, Any]:
+        if isinstance(names, list) and any(not isinstance(name, str) for name in names):
+            raise ValueError("Every track name must be a string.")
+        clean_names = unique_names(names, "Provide at least one track name.")
+        if len(clean_names) > self.max_tracks:
+            raise ValueError(f"Play at most {self.max_tracks} tracks at a time.")
+        queue = [(name, self.visible.path(name)) for name in clean_names]
+        speakers = self.player.speakers()
+        if speaker is not None:
+            chosen = self.match(speakers, speaker)
+        elif len(speakers) == 1:
+            chosen = speakers[0]
+        else:
+            return {
+                "status": "choose_speaker",
+                "message": (
+                    "Several speakers are connected. Ask the user which one to play on, then call "
+                    "play_tracks again with speaker set to its name."
+                ),
+                "speakers": [option.as_row() for option in speakers],
+            }
+        return self.player.play(queue, chosen, loop)
+
+
 class VibiaService:
     """Facade grouping every Luna Vibia use case for the transport adapters."""
 
@@ -856,6 +914,7 @@ class VibiaService:
         urls: PublicURLService,
         downloads: TrackDownloadService,
         uploads: UploadLinkService,
+        playback: PlaybackService,
     ) -> None:
         self.visible = visible
         self.hidden = hidden
@@ -865,6 +924,7 @@ class VibiaService:
         self.urls = urls
         self.downloads = downloads
         self.uploads = uploads
+        self.playback = playback
 
     @classmethod
     def create(
@@ -875,6 +935,7 @@ class VibiaService:
         captioner: OllamaCaptioner,
         encoder: ClapEncoder,
         covers: VisiaImageCatalog,
+        player: SpeakerPlayer | None = None,
     ) -> "VibiaService":
         """Wire the use cases around the given persistence and analysis adapters."""
         rules = MetadataRules(config.max_tags, config.search_stop_words)
@@ -916,4 +977,5 @@ class VibiaService:
             uploads=UploadLinkService(
                 visible, UploadLinkStore(config.upload_ttl_seconds), urls, config.max_track_bytes
             ),
+            playback=PlaybackService(visible, player or SpeakerPlayer(), config.max_play_tracks),
         )

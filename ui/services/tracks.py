@@ -104,8 +104,8 @@ class TrackFiles:
         return self._cover_image(path.name, cover_url, self.config.card_size)
 
     def cover(self, path: Path, cover_url: str | None) -> Image.Image:
-        """Return a large square cover for the track dialog."""
-        return self._cover_image(path.name, cover_url, (640, 640))
+        """Return a large 4.5:3 cover for the track dialog."""
+        return self._cover_image(path.name, cover_url, (720, 480))
 
     @staticmethod
     def size(path: Path) -> int:

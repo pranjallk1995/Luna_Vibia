@@ -128,6 +128,7 @@ class VibiaMCPTools:
         self.sources = sources
         self._register_library_tools()
         self._register_delivery_tools()
+        self._register_playback_tools()
         self._register_mutation_tools()
 
     def _register_library_tools(self) -> None:
@@ -286,6 +287,48 @@ class VibiaMCPTools:
             public_url instead.
             """
             return await offload(downloads.create_zip, names)
+
+    def _register_playback_tools(self) -> None:
+        server, playback = self.server, self.service.playback
+
+        @server.tool()
+        async def list_speakers() -> dict[str, Any]:
+            """List the speakers (audio outputs) connected to the machine running Luna Vibia.
+
+            Each has a name to pass to play_tracks, a description to show the
+            user, and default (the output the host uses by default).
+            """
+            return await offload(playback.speakers)
+
+        @server.tool()
+        async def play_tracks(
+            names: list[str], speaker: str | None = None, loop: bool = False
+        ) -> dict[str, Any]:
+            """Play visible tracks out loud on the host machine's speakers, in the given order.
+
+            Use exact names from list_tracks, search_tracks, or suggest_playlist
+            (at most 200); set loop=true to repeat the queue, as suggest_playlist
+            advises. Starting a new queue stops the current one.
+
+            speaker is a name or description from list_speakers. If it is omitted
+            and only one speaker is connected, that one plays. If several are
+            connected, nothing plays: the result has status "choose_speaker" and
+            the options; ask the user which one, then call again with speaker.
+            """
+            return await offload(playback.play, names, speaker, loop)
+
+        @server.tool()
+        async def stop_playback() -> dict[str, Any]:
+            """Stop whatever play_tracks is playing on the host's speakers."""
+            return await offload(playback.player.stop)
+
+        @server.tool()
+        def get_playback_status() -> dict[str, Any]:
+            """Return what is playing: status, speaker, queued tracks, loop, and now_playing.
+
+            status is idle, playing, finished, or failed (with the track and error).
+            """
+            return playback.player.status()
 
     def _register_mutation_tools(self) -> None:
         server, visible, sources, uploads = (

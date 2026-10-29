@@ -19,6 +19,30 @@ captioned, and tagged locally, and embedded so that a request such as "something
 evening coffee" finds the tracks that sound right, even when no stored word matches.
 Cover art comes from Luna Visia.
 
+## Architecture
+
+### Luna ecosystem
+
+![Luna ecosystem architecture](docs/luna-ecosystem.svg)
+
+Every Luna app is a Streamlit UI plus a FastMCP service on Luna Sentia's
+`luna_sentia_network`: its data lives in Sentia's PostgreSQL, people sign in
+through Sentia's `auth`, and model calls go to Sentia's Ollama. Orange lines are
+Visia image URLs that other apps use: food images for Vita, room images for
+Lumia, and cover art for Vibia. Grey dashed lines are planned: links into Fiora
+(tax details from Lexia, transaction image and icon URLs from Visia), and a
+proposed unifying app that detects which Luna apps are installed, shows them in
+one home, and opens each one with the shared sign-in.
+
+| Component | Technology | Purpose |
+| --- | --- | --- |
+| UI (`luna-vibia-ui`, `:18506`) | Streamlit | Gallery and list views, track dialog with player, 4.5:3 cover, and inline editing |
+| MCP (`luna-vibia-mcp`, `:18005`) | FastMCP + REST, LangGraph | Upload, analysis, search, playlists, covers; the UI calls it with a bearer token |
+| Listening | CLAP on CPU, librosa, ffprobe | Embedding, matched moods and instruments, tempo, key, energy |
+| Captions | Sentia's Ollama (`CAPTION_MODEL`, text only) | Caption and tags from what CLAP heard and the measurements |
+| Storage | Sentia's PostgreSQL (`lunavibia`, pgvector) and a track volume | Metadata, embeddings, full-text index; the audio files |
+| Covers | Luna Visia | Images by immutable ID URL, fetched over `luna_sentia_network` |
+
 ## How a track is processed
 
 ```text
@@ -93,6 +117,7 @@ LUNAVIBIA_PUBLIC_BASE_URL=https://vibia.example.com
 LUNAVIBIA_API_TOKEN=replace-with-a-random-value-of-at-least-32-characters
 LUNAVIBIA_ALLOWED_EMAILS=you@example.com
 MCP_PUBLIC_URL=https://vibia-mcp.example.com
+PULSE_SOCKET=/mnt/wslg/PulseServer
 LUNA_SSO_URL=https://auth.example.com
 LUNA_SSO_INTERNAL_URL=http://luna-sentia-auth:8000
 ```
@@ -120,6 +145,20 @@ docker compose up -d
 - `suggest_playlist` - a looping playlist for a mood or moment, about `minutes` long, without near-duplicates.
 - `list_tracks` - visible tracks newest first, with captions, facts, `cover_url`, and playable `public_url`.
 - `get_track_url` - the playable public URL of one track.
+
+### Play on the host's speakers
+
+- `play_tracks` - play tracks out loud, in order and optionally looped, on a speaker of the machine running Vibia. With several speakers connected and none named, nothing plays: it returns `choose_speaker` and the options so the LLM asks which one.
+- `list_speakers` - the connected audio outputs, with the host's default marked.
+- `get_playback_status` / `stop_playback` - what is playing, and stop it.
+
+The MCP container plays through the host's PulseAudio (or PipeWire) server, whose
+socket `PULSE_SOCKET` mounts into it. The default, `/mnt/wslg/PulseServer`, is WSLg's:
+on Windows it shows a single speaker, `RDPSink`, which plays on Windows' current default
+output, so pick another output in Windows' sound settings. On Linux, set it to
+`/run/user/1000/pulse/native` (your user ID in place of 1000), where every speaker is
+listed. Restart Vibia after the host's sound server restarts (for example after
+`wsl --shutdown`).
 
 ### Add and change
 

@@ -13,6 +13,8 @@ services:
       LUNAVIBIA_PUBLIC_BASE_URL: ${LUNAVIBIA_PUBLIC_BASE_URL}
       MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://localhost:18005}
       LUNAVIBIA_API_TOKEN: ${LUNAVIBIA_API_TOKEN:?Set LUNAVIBIA_API_TOKEN to a private random value of at least 32 characters}
+      # play_tracks plays on the host's speakers through its sound server, mounted below.
+      PULSE_SERVER: unix:/run/pulse/native
     expose:
       - "8000"
     ports:
@@ -20,6 +22,7 @@ services:
     volumes:
       - track_data:/data/tracks
       - download_data:/data/downloads
+      - ${PULSE_SOCKET:-/mnt/wslg/PulseServer}:/run/pulse/native
     develop:
       watch:
         - action: sync+restart
