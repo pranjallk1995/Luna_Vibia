@@ -1,0 +1,16 @@
+# systemd user unit for the Windows speaker helper. Install from the repository root:
+#   mkdir -p ~/.config/systemd/user
+#   sed "s#@VIBIA_DIR@#$PWD#g" host/luna-vibia-speakers.service > ~/.config/systemd/user/luna-vibia-speakers.service
+#   systemctl --user daemon-reload && systemctl --user enable --now luna-vibia-speakers
+[Unit]
+Description=Luna Vibia Windows speaker helper
+
+[Service]
+# LUNAVIBIA_API_TOKEN, shared with the MCP container.
+EnvironmentFile=@VIBIA_DIR@/.env
+ExecStart=/usr/bin/python3 @VIBIA_DIR@/host/speaker_helper.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -16,6 +16,10 @@ services:
       LUNAVIBIA_API_TOKEN: ${LUNAVIBIA_API_TOKEN:?Set LUNAVIBIA_API_TOKEN to a private random value of at least 32 characters}
       # play_tracks plays on the host's speakers through its sound server, mounted below.
       PULSE_SERVER: unix:/run/pulse/native
+      # Under WSL, the host's helper lists Windows' Bluetooth speakers and switches to one (host/).
+      LUNAVIBIA_SPEAKER_HELPER_URL: ${LUNAVIBIA_SPEAKER_HELPER_URL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     expose:
       - "8000"
     ports:

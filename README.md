@@ -121,6 +121,7 @@ LUNAVIBIA_API_TOKEN=replace-with-a-random-value-of-at-least-32-characters
 LUNAVIBIA_ALLOWED_EMAILS=you@example.com
 MCP_PUBLIC_URL=https://vibia-mcp.example.com
 PULSE_SOCKET=/mnt/wslg/PulseServer
+LUNAVIBIA_SPEAKER_HELPER_URL=http://host.docker.internal:18007
 LUNAVIBIA_PLACEHOLDER_COVER_ID=
 LUNA_SSO_URL=https://auth.example.com
 LUNA_SSO_INTERNAL_URL=http://luna-sentia-auth:8000
@@ -153,16 +154,32 @@ docker compose up -d
 ### Play on the host's speakers
 
 - `play_tracks` - play tracks out loud, in order and optionally looped, on a speaker of the machine running Vibia. With several speakers connected and none named, nothing plays: it returns `choose_speaker` and the options so the LLM asks which one.
-- `list_speakers` - the connected audio outputs, with the host's default marked.
+- `list_speakers` - the connected speakers (under WSL, Windows' Bluetooth speakers), with the current output marked.
 - `get_playback_status` / `stop_playback` - what is playing, and stop it.
 
 The MCP container plays through the host's PulseAudio (or PipeWire) server, whose
-socket `PULSE_SOCKET` mounts into it. The default, `/mnt/wslg/PulseServer`, is WSLg's:
-on Windows it shows a single speaker, `RDPSink`, which plays on Windows' current default
-output, so pick another output in Windows' sound settings. On Linux, set it to
-`/run/user/1000/pulse/native` (your user ID in place of 1000), where every speaker is
-listed. Restart Vibia after the host's sound server restarts (for example after
-`wsl --shutdown`).
+socket `PULSE_SOCKET` mounts into it. On Linux, set it to `/run/user/1000/pulse/native`
+(your user ID in place of 1000) and leave `LUNAVIBIA_SPEAKER_HELPER_URL` blank: every
+speaker is listed.
+
+Under WSL (the default, `/mnt/wslg/PulseServer`), WSLg exposes one output that plays on
+Windows' default device, so a small helper on the WSL host picks the speaker:
+`host/speaker_helper.py` lists Windows' connected Bluetooth speakers and, when the LLM
+names one ("play something calm on the echo dot"), makes it Windows' default output
+(through `host/windows_audio.ps1`); WSLg's audio follows. It uses only the Python
+standard library and the shared `LUNAVIBIA_API_TOKEN`. Install it once as a user
+service, from this directory:
+
+```sh
+mkdir -p ~/.config/systemd/user
+sed "s#@VIBIA_DIR@#$PWD#g" host/luna-vibia-speakers.service > ~/.config/systemd/user/luna-vibia-speakers.service
+systemctl --user daemon-reload && systemctl --user enable --now luna-vibia-speakers
+```
+
+The container reaches it at `LUNAVIBIA_SPEAKER_HELPER_URL`
+(`http://host.docker.internal:18007`). Listing takes about 5 seconds, as PowerShell
+reads Windows' devices. Restart Vibia after the host's sound server restarts (for
+example after `wsl --shutdown`).
 
 ### Add and change
 

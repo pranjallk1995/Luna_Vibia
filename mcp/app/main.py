@@ -14,6 +14,7 @@ from app.data.repositories import TrackRepository, PublicURLRepository
 from app.services.application import VibiaService
 from app.integrations.captioning import OllamaCaptioner
 from app.integrations.clap import ClapEncoder
+from app.integrations.speakers import SpeakerPlayer, WindowsSpeakerHelper
 from app.integrations.visia import VisiaImageCatalog
 
 
@@ -35,6 +36,11 @@ class LunaVibiaApplication:
             ),
             ClapEncoder(),
             VisiaImageCatalog(config.visia_api_url, config.placeholder_cover_id),
+            SpeakerPlayer(
+                WindowsSpeakerHelper(config.speaker_helper_url, config.api_token)
+                if config.speaker_helper_url
+                else None
+            ),
         )
         self.branding = ServerBranding(config.mcp_public_url)
         self.mcp = FastMCP(

@@ -293,10 +293,11 @@ class VibiaMCPTools:
 
         @server.tool()
         async def list_speakers() -> dict[str, Any]:
-            """List the speakers (audio outputs) connected to the machine running Luna Vibia.
+            """List the speakers connected to the machine running Luna Vibia.
 
-            Each has a name to pass to play_tracks, a description to show the
-            user, and default (the output the host uses by default).
+            On Windows these are its connected Bluetooth speakers. Each has a name
+            to pass to play_tracks, a description to show the user, and default
+            (the output the host plays on now).
             """
             return await offload(playback.speakers)
 
@@ -310,10 +311,12 @@ class VibiaMCPTools:
             (at most 200); set loop=true to repeat the queue, as suggest_playlist
             advises. Starting a new queue stops the current one.
 
-            speaker is a name or description from list_speakers. If it is omitted
-            and only one speaker is connected, that one plays. If several are
-            connected, nothing plays: the result has status "choose_speaker" and
-            the options; ask the user which one, then call again with speaker.
+            Pass speaker only when the user names one (for example "on the echo
+            dot"): a name or part of a description from list_speakers; it becomes
+            the host's output. If it is omitted and only one speaker is connected,
+            that one plays. If several are connected, nothing plays: the result
+            has status "choose_speaker" and the options; ask the user which one,
+            then call again with speaker.
             """
             return await offload(playback.play, names, speaker, loop)
 

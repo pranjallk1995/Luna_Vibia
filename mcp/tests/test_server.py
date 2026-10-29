@@ -649,6 +649,28 @@ class PlaybackToolTests(ServerTestCase):
             self.call("play_tracks", {"names": ["one.wav"]})
         self.assertEqual(player.played, [])
 
+    def test_windows_speakers_switch_the_default_then_play_on_it(self) -> None:
+        echo = Speaker("Echo Dot-PL7", "Speakers (Echo Dot-PL7)", False, "{0.0.0.00000000}.{f957}")
+
+        class FakeWindows:
+            selected: list[Speaker] = []
+
+            def speakers(self):
+                return [echo]
+
+            def select(self, speaker):
+                self.selected.append(speaker)
+
+        windows = FakeWindows()
+        player = SpeakerPlayer(windows)
+        commands = []
+        player._run = lambda queue, sink, loop, stop: commands.append(player._command(queue[0][1], sink, queue[0][0]))
+        self.service.playback.player = player
+        result = self.call("play_tracks", {"names": ["one.wav"], "speaker": "echo dot"})
+        self.assertEqual((result["status"], result["speaker"]["name"]), ("playing", "Echo Dot-PL7"))
+        self.assertEqual(windows.selected, [echo])
+        self.assertNotIn("-device", commands[0])
+
     def test_list_speakers_and_status(self) -> None:
         self.connect(self.LOUNGE, self.DESK)
         speakers = self.call("list_speakers", {})

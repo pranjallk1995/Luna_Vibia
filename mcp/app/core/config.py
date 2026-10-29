@@ -25,6 +25,8 @@ class AppConfig:
     AUDIO_TOOL_TIMEOUT_SECONDS: ClassVar[int] = 120
     # Listing the host's speakers asks its sound server; stopping waits for ffmpeg to exit.
     SPEAKER_LIST_TIMEOUT_SECONDS: ClassVar[int] = 10
+    # The Windows speaker helper asks PowerShell, which takes about 5 s per listing.
+    SPEAKER_HELPER_TIMEOUT_SECONDS: ClassVar[float] = 30.0
     PLAYBACK_STOP_TIMEOUT_SECONDS: ClassVar[int] = 5
     # CLAP hears 10-second, 48 kHz clips; a track is heard as up to this many clips
     # spread over its length, and their embeddings are averaged. The music-only
@@ -117,6 +119,8 @@ class AppConfig:
     )
     # Public HTTPS origin of this MCP server, used for icon URLs ("" = embedded icons only).
     mcp_public_url: str = ""
+    # The WSL host's Windows speaker helper ("" = list the PulseAudio sinks directly).
+    speaker_helper_url: str = ""
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -155,7 +159,13 @@ class AppConfig:
             local = parsed_public_url.scheme == "http" and parsed_public_url.hostname in {"localhost", "127.0.0.1"}
             if not parsed_public_url.netloc or (parsed_public_url.scheme != "https" and not local):
                 raise RuntimeError("MCP_PUBLIC_URL must be an HTTPS URL (plain HTTP only on localhost).")
+        speaker_helper_url = os.getenv("LUNAVIBIA_SPEAKER_HELPER_URL", "").strip().rstrip("/")
+        if speaker_helper_url:
+            parsed_helper_url = urlparse(speaker_helper_url)
+            if parsed_helper_url.scheme not in {"http", "https"} or not parsed_helper_url.netloc:
+                raise RuntimeError("LUNAVIBIA_SPEAKER_HELPER_URL must be a valid HTTP(S) URL.")
         return cls(
+            speaker_helper_url=speaker_helper_url,
             mcp_public_url=mcp_public_url,
             track_dir=track_dir,
             database_url=database_url,
