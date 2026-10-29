@@ -5,6 +5,7 @@
 ![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![Luna Sentia required](https://img.shields.io/badge/Luna_Sentia-required-111111?logo=ollama&logoColor=white)
 ![PostgreSQL in Luna Sentia](https://img.shields.io/badge/PostgreSQL-in_Luna_Sentia-4169E1?logo=postgresql&logoColor=white)
+![CLAP on CPU](https://img.shields.io/badge/CLAP-on_CPU-FFD21E?logo=huggingface&logoColor=black)
 ![Status: early](https://img.shields.io/badge/Status-early-D29922)
 
 ## Store, describe, and find music with LLMs
@@ -17,6 +18,9 @@ Luna Vibia is the music counterpart of [Luna Visia](https://github.com/pranjallk
 assistant that generates music stores it here; every track is listened to, measured,
 captioned, and tagged locally, and embedded so that a request such as "something for
 evening coffee" finds the tracks that sound right, even when no stored word matches.
+The listening is done by [CLAP](https://huggingface.co/laion/clap-htsat-unfused)
+(`laion/clap-htsat-unfused`), a model that puts music and text in one embedding space;
+it runs on the CPU inside Vibia, so only the captions use Luna Sentia's model.
 Cover art comes from Luna Visia.
 
 <p align="center">
