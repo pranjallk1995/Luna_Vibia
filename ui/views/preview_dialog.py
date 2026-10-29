@@ -121,9 +121,10 @@ class TrackPreviewDialog:
         cover_column, player_column = st.columns([1, 2], vertical_alignment="center")
         cover_column.image(self.files.cover(track_path, metadata.get("cover_url")), width="stretch")
         with player_column:
-            for label in (metadata.get("title"), metadata.get("artist")):
-                if label:
-                    st.markdown(f'<div class="lv-preview-caption">{html.escape(str(label))}</div>', unsafe_allow_html=True)
+            labels = [label for label in (metadata.get("title"), metadata.get("artist")) if label]
+            if labels:
+                lines = "".join(f'<div class="lv-preview-caption">{html.escape(str(label))}</div>' for label in labels)
+                st.markdown(f'<div class="lv-preview-track">{lines}</div>', unsafe_allow_html=True)
             st.audio(str(track_path), format=self.files.mime_type(track_path))
             facts = [self.files.duration_label(metadata.get("duration_seconds"))]
             if metadata.get("tempo_bpm"):

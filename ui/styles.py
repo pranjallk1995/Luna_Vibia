@@ -196,6 +196,7 @@ class LunaStyle:
                 display:flex; align-items:center; min-height:1.35rem;
                 margin:0; color:var(--lv-text); line-height:1.35rem;
             }
+            .lv-preview-track { display:flex; flex-direction:column; gap:.5rem; margin-bottom:.85rem; }
             div[data-testid="stHorizontalBlock"]:has(.lv-preview-static-icon) {
                 align-items:center!important;
             }
