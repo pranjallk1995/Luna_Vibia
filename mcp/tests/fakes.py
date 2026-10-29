@@ -303,6 +303,12 @@ class FakeSpeakerPlayer(SpeakerPlayer):
                        "loop": loop, "now_playing": queue[0][0]}
         return self.status()
 
+    def switch(self, speaker):
+        queue, _, loop = self.played[-1]
+        self.played.append((queue, speaker, loop))
+        self._state = {**self._state, "speaker": speaker.as_row()}
+        return self.status()
+
 
 def tone(hertz=440.0, seconds=2.0, rate=48_000):
     t = np.arange(int(seconds * rate)) / rate

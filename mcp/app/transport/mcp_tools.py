@@ -317,8 +317,21 @@ class VibiaMCPTools:
             that one plays. If several are connected, nothing plays: the result
             has status "choose_speaker" and the options; ask the user which one,
             then call again with speaker.
+
+            To move the music to another speaker, use switch_speaker; the same
+            queue passed here again also carries on instead of restarting.
             """
             return await offload(playback.play, names, speaker, loop)
+
+        @server.tool()
+        async def switch_speaker(speaker: str) -> dict[str, Any]:
+            """Move what is playing to another speaker without restarting it.
+
+            speaker is a name or part of a description from list_speakers. The
+            current track resumes on it at the second it had reached, and the
+            rest of the queue follows. Fails if nothing is playing.
+            """
+            return await offload(playback.switch_speaker, speaker)
 
         @server.tool()
         async def stop_playback() -> dict[str, Any]:
@@ -326,12 +339,16 @@ class VibiaMCPTools:
             return await offload(playback.player.stop)
 
         @server.tool()
-        def get_playback_status() -> dict[str, Any]:
-            """Return what is playing: status, speaker, queued tracks, loop, and now_playing.
+        async def get_playback_status() -> dict[str, Any]:
+            """Return what is playing: status, speaker, queued tracks, loop, now_playing, and position_seconds.
 
             status is idle, playing, finished, or failed (with the track and error).
+            speaker and output are where the sound goes right now, read live from
+            the host: the output can change after playback starts (for example
+            when another Bluetooth speaker connects), and then requested_speaker
+            and note say so. Always tell the user the speaker reported here.
             """
-            return playback.player.status()
+            return await offload(playback.player.live_status)
 
     def _register_mutation_tools(self) -> None:
         server, visible, sources, uploads = (

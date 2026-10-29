@@ -14,6 +14,7 @@ from services.state import SessionState
 from styles import LunaStyle
 from views.favorites_tab import FavoritesTab
 from views.hidden_tab import HiddenTab
+from views.playback_bar import PlaybackBar
 from views.shared import VibiaContext
 from views.upload_dialog import UploadDialog
 from views.view_tab import ViewTab
@@ -159,6 +160,7 @@ class LunaVibiaApp:
             "Luna Vibia", "Private AI-managed music library"
         )
         open_upload = self.render_header()
+        PlaybackBar(self.context.api).render()
         if open_upload:
             UploadDialog(self.context).open()
         GalleryNavigation.render()(self.context).render()

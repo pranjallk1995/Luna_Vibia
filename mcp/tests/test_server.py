@@ -10,6 +10,7 @@ import unittest
 import zipfile
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
@@ -33,7 +34,7 @@ from app.transport.http_routes import VibiaHTTPRoutes
 from app.transport.mcp_tools import VibiaMCPTools
 from app.services.media import TrackArchive, display_name
 from app.integrations.remote import TrackSourceResolver
-from app.integrations.speakers import Speaker, SpeakerPlayer
+from app.integrations.speakers import Speaker, SpeakerPlayer, WindowsSpeakerHelper
 from app.services.application import VibiaService
 
 
@@ -664,7 +665,7 @@ class PlaybackToolTests(ServerTestCase):
         windows = FakeWindows()
         player = SpeakerPlayer(windows)
         commands = []
-        player._run = lambda queue, sink, loop, stop: commands.append(player._command(queue[0][1], sink, queue[0][0]))
+        player._run = lambda queue, sink, loop, stop, *start: commands.append(player._command(queue[0][1], sink, queue[0][0]))
         self.service.playback.player = player
         result = self.call("play_tracks", {"names": ["one.wav"], "speaker": "echo dot"})
         self.assertEqual((result["status"], result["speaker"]["name"]), ("playing", "Echo Dot-PL7"))
@@ -675,12 +676,85 @@ class PlaybackToolTests(ServerTestCase):
         self.connect(self.LOUNGE, self.DESK)
         speakers = self.call("list_speakers", {})
         self.assertEqual((speakers["count"], speakers["speakers"][0]["default"]), (2, True))
-        self.assertEqual(self.call("get_playback_status", {}), {"status": "idle"})
-        self.call("play_tracks", {"names": ["two.wav"], "speaker": "lounge"})
-        self.assertEqual(self.call("get_playback_status", {})["now_playing"], "two.wav")
+        self.assertEqual(self.call("get_playback_status", {}), {"status": "idle", "output": self.LOUNGE.as_row()})
+        self.call("play_tracks", {"names": ["two.wav"], "speaker": "desk"})
+        playing = self.call("get_playback_status", {})
+        self.assertEqual((playing["now_playing"], playing["output"]), ("two.wav", self.DESK.as_row()))
+        self.assertNotIn("requested_speaker", playing)
         self.assertEqual(self.call("stop_playback", {}), {"status": "stopped"})
-        self.assertEqual(self.call("get_playback_status", {}), {"status": "idle"})
+        self.assertEqual(self.call("get_playback_status", {})["status"], "idle")
 
+    def test_status_reports_the_speaker_windows_switched_to(self) -> None:
+        echo = Speaker("Echo Dot-PL7", "Speakers (Echo Dot-PL7)", True, "echo-id")
+        spinx = {"name": "Stone Spinx Pro", "description": "Bluetooth Speakers (Stone Spinx Pro)", "bluetooth": True}
+
+        class FakeWindows:
+            output = {"name": echo.name, "description": echo.description, "bluetooth": True}
+
+            def speakers(self):
+                return [echo]
+
+            def current(self):
+                return self.output
+
+        windows = FakeWindows()
+        player = SpeakerPlayer(windows)
+        player._run = lambda queue, sink, loop, stop, *start: None
+        self.service.playback.player = player
+        self.call("play_tracks", {"names": ["one.wav"]})
+        self.assertNotIn("requested_speaker", self.call("get_playback_status", {}))
+        windows.output = spinx
+        status = self.call("get_playback_status", {})
+        self.assertEqual((status["speaker"], status["output"]), (spinx, spinx))
+        self.assertEqual(status["requested_speaker"]["name"], "Echo Dot-PL7")
+        self.assertIn("Stone Spinx Pro", status["note"])
+        with self.client() as client:
+            self.assertEqual(client.get("/api/playback").json()["speaker"], spinx)
+
+
+    def test_switching_speaker_resumes_the_track_where_it_was(self) -> None:
+        lounge, desk = Speaker("lounge", "Lounge", True), Speaker("desk", "Desk", False)
+        player = SpeakerPlayer()
+        player.speakers = lambda: [lounge, desk]
+        runs = []
+        player._run = lambda queue, sink, loop, stop, *start: runs.append((sink, loop, *start))
+        self.service.playback.player = player
+        self.call("play_tracks", {"names": ["one.wav", "two.wav"], "speaker": "lounge", "loop": True})
+        self.assertEqual(runs[-1], ("lounge", True, 0, 0.0))
+        player._state["now_playing"] = "two.wav"
+        player._track_started -= 42
+        self.assertAlmostEqual(self.call("get_playback_status", {})["position_seconds"], 42, delta=1)
+        moved = self.call("switch_speaker", {"speaker": "desk"})
+        self.assertEqual((moved["speaker"]["name"], moved["now_playing"]), ("desk", "two.wav"))
+        sink, loop, track, seconds = runs[-1]
+        self.assertEqual((sink, loop, track), ("desk", True, 1))
+        self.assertAlmostEqual(seconds, 42, delta=1)
+        self.assertIn("-ss", player._command(Path("two.wav"), sink, "two.wav", seconds))
+        # The same queue through play_tracks carries on too.
+        self.call("play_tracks", {"names": ["one.wav", "two.wav"], "speaker": "lounge", "loop": True})
+        self.assertEqual(runs[-1][2], 1)
+        self.call("play_tracks", {"names": ["one.wav"], "speaker": "lounge"})
+        self.assertEqual(runs[-1][2:], (0, 0.0))
+        player.stop()
+        with self.assertRaises(ToolError):
+            self.call("switch_speaker", {"speaker": "desk"})
+
+    def test_windows_helper_reads_the_current_output_quickly(self) -> None:
+        helper = WindowsSpeakerHelper("http://helper", "token")
+        output = {"id": "x", "name": "Echo Dot-PL7", "description": "Speakers (Echo Dot-PL7)", "bluetooth": True}
+
+        class Response:
+            is_error = False
+
+            def json(self):
+                return output
+
+        with patch("httpx.request", return_value=Response()) as request:
+            self.assertEqual(helper.current()["name"], "Echo Dot-PL7")
+        self.assertEqual(request.call_args.kwargs["timeout"], AppConfig.SPEAKER_OUTPUT_TIMEOUT_SECONDS)
+        output["id"] = ""
+        with patch("httpx.request", return_value=Response()):
+            self.assertIsNone(helper.current())
 
 class HTTPRouteTests(ServerTestCase):
     def test_health_route_reports_service_status(self) -> None:

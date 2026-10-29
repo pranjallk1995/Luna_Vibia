@@ -40,6 +40,9 @@ class UIConfig:
     UPLOAD_TYPES: ClassVar[tuple[str, ...]] = ("mp3", "wav", "flac", "ogg", "opus", "m4a")
     API_TIMEOUT_SECONDS: ClassVar[float] = 30.0
     LIST_TIMEOUT_SECONDS: ClassVar[float] = 10.0
+    # The playback line re-reads where sound goes; Windows can switch speakers on its own.
+    PLAYBACK_REFRESH_SECONDS: ClassVar[int] = 10
+    PLAYBACK_TIMEOUT_SECONDS: ClassVar[float] = 8.0
     # Uploads wait for the backend to listen to, measure, and caption the track.
     UPLOAD_TIMEOUT_SECONDS: ClassVar[float] = 360.0
     THUMBNAIL_CACHE_ENTRIES: ClassVar[int] = 256

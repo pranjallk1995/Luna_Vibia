@@ -91,6 +91,9 @@ class LunaStyle:
             .lv-mark { display:block; flex:0 0 5.75rem; width:5.75rem; height:4.5rem; border:0; border-radius:0; object-fit:contain; object-position:center; box-shadow:none; }
             .lv-title { margin:0; color:var(--lv-text); font-family:inherit; font-size:var(--luna-text-title); font-weight:720; letter-spacing:-.04em; line-height:1; }
             .stApp .lv-subtitle { margin:.32rem 0 0; color:var(--lv-muted); font-size:var(--luna-text-subtitle); font-weight:400; }
+            .stApp .lv-playback { display:flex; align-items:center; gap:.5rem; margin:0; padding:.45rem .8rem; border:1px solid var(--lv-border); border-radius:.65rem; background:var(--lv-surface); color:var(--lv-muted); font-size:.9rem; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+            .stApp .lv-playback strong { color:var(--lv-text); font-weight:600; }
+            .lv-playback-icon { flex:0 0 auto; }
             div[data-testid="stTabs"] [data-baseweb="tab-list"] { gap:.35rem; padding:.28rem; border:1px solid var(--lv-border); border-radius:.9rem; background:var(--lv-surface); }
             div[data-testid="stTabs"] [data-baseweb="tab"] { height:2.55rem; padding:0 1rem; border-radius:.65rem; color:var(--lv-muted); }
             div[data-testid="stTabs"] [aria-selected="true"] { background:var(--lv-soft); color:var(--lv-text); }

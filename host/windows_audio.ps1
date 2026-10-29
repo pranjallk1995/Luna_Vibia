@@ -2,7 +2,8 @@
 # Called by speaker_helper.py through WSL interop; prints JSON.
 #   windows_audio.ps1 list
 #   windows_audio.ps1 set <endpoint-id>
-param([Parameter(Mandatory)][ValidateSet("list", "set")][string]$Command, [string]$EndpointId)
+#   windows_audio.ps1 default
+param([Parameter(Mandatory)][ValidateSet("list", "set", "default")][string]$Command, [string]$EndpointId)
 
 $ErrorActionPreference = "Stop"
 
@@ -79,6 +80,14 @@ function Get-BluetoothSpeakers {
 
 switch ($Command) {
     "list" { ConvertTo-Json -Compress -InputObject @(Get-BluetoothSpeakers) }
+    # The current default output, whatever kind it is; one device lookup, not a listing.
+    "default" {
+        $id = [LunaVibia.Audio]::DefaultOutput()
+        $endpoint = if ($id) { Get-PnpDevice -InstanceId "SWD\MMDEVAPI\$id" -ErrorAction SilentlyContinue }
+        $description = if ($endpoint) { $endpoint.FriendlyName } else { "" }
+        $device = if ($description -match '\((.+)\)$') { $Matches[1] } else { $description }
+        ConvertTo-Json -Compress -InputObject @{ id = $id; name = $device; description = $description }
+    }
     # speaker_helper.py only passes IDs that "list" returned, so this skips the slow listing.
     "set" {
         [LunaVibia.Audio]::SetDefaultOutput($EndpointId.ToLower())

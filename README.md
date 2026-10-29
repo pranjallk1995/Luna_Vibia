@@ -155,7 +155,8 @@ docker compose up -d
 
 - `play_tracks` - play tracks out loud, in order and optionally looped, on a speaker of the machine running Vibia. With several speakers connected and none named, nothing plays: it returns `choose_speaker` and the options so the LLM asks which one.
 - `list_speakers` - the connected speakers (under WSL, Windows' Bluetooth speakers), with the current output marked.
-- `get_playback_status` / `stop_playback` - what is playing, and stop it.
+- `switch_speaker` - move what is playing to another speaker; the current track resumes there at the second it had reached. `play_tracks` with the same queue does the same instead of restarting.
+- `get_playback_status` / `stop_playback` - what is playing (with `position_seconds` into the current track), and stop it.
 
 The MCP container plays through the host's PulseAudio (or PipeWire) server, whose
 socket `PULSE_SOCKET` mounts into it. On Linux, set it to `/run/user/1000/pulse/native`

@@ -26,6 +26,8 @@ POWERSHELL = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 POWERSHELL_TIMEOUT_SECONDS = 60
 # A speaker can only be selected by an ID a recent listing returned.
 LISTING_MAX_AGE_SECONDS = 300
+# The UI polls the current output; answers this fresh are reused instead of asking Windows again.
+DEFAULT_MAX_AGE_SECONDS = 5
 ENDPOINT_ID = re.compile(r"^\{0\.0\.0\.[0-9a-f]{8}\}\.\{[0-9a-f-]{36}\}$")
 
 
@@ -40,6 +42,8 @@ class WindowsSpeakers:
         self._lock = threading.Lock()
         self._listed: dict[str, dict[str, Any]] = {}
         self._listed_at = 0.0
+        self._default: dict[str, Any] | None = None
+        self._default_at = 0.0
         self._script = subprocess.run(
             ["wslpath", "-w", str(SCRIPT)], capture_output=True, text=True, check=True
         ).stdout.strip()
@@ -63,7 +67,27 @@ class WindowsSpeakers:
         with self._lock:
             self._listed = {speaker["id"]: speaker for speaker in speakers}
             self._listed_at = time.monotonic()
+            self._default = None
         return speakers
+
+    def default(self) -> dict[str, Any]:
+        """Windows' current default output, and whether it is a connected Bluetooth speaker.
+
+        Windows may switch it on its own, for example when a Bluetooth speaker
+        connects, so this asks Windows rather than trusting the last selection.
+        """
+        with self._lock:
+            if self._default is not None and time.monotonic() - self._default_at < DEFAULT_MAX_AGE_SECONDS:
+                return self._default
+        output = self._run("default")
+        with self._lock:
+            listed = time.monotonic() - self._listed_at < LISTING_MAX_AGE_SECONDS
+        if output["id"] and (not listed or output["id"] not in self._listed):
+            self.list()
+        with self._lock:
+            output = {**output, "bluetooth": output["id"] in self._listed}
+            self._default, self._default_at = output, time.monotonic()
+        return output
 
     def select(self, endpoint_id: str) -> dict[str, Any]:
         endpoint_id = endpoint_id.strip().lower()
@@ -78,6 +102,8 @@ class WindowsSpeakers:
             raise LookupError(f"No connected Bluetooth speaker has ID {endpoint_id}.")
         if self._run("set", endpoint_id)["id"] != endpoint_id:
             raise SpeakerError(f"Windows did not switch its output to {speaker['description']}.")
+        with self._lock:
+            self._default = None
         return {**speaker, "default": True}
 
 
@@ -116,6 +142,9 @@ class SpeakerHandler(BaseHTTPRequestHandler):
         elif self.path == "/speakers":
             if self._authorized():
                 self._handle(lambda: {"speakers": self.speakers.list()})
+        elif self.path == "/speakers/default":
+            if self._authorized():
+                self._handle(self.speakers.default)
         else:
             self._send(404, {"detail": "Not found."})
 

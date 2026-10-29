@@ -27,6 +27,8 @@ class AppConfig:
     SPEAKER_LIST_TIMEOUT_SECONDS: ClassVar[int] = 10
     # The Windows speaker helper asks PowerShell, which takes about 5 s per listing.
     SPEAKER_HELPER_TIMEOUT_SECONDS: ClassVar[float] = 30.0
+    # Reading only the current output takes about a second.
+    SPEAKER_OUTPUT_TIMEOUT_SECONDS: ClassVar[float] = 10.0
     PLAYBACK_STOP_TIMEOUT_SECONDS: ClassVar[int] = 5
     # CLAP hears 10-second, 48 kHz clips; a track is heard as up to this many clips
     # spread over its length, and their embeddings are averaged. The music-only

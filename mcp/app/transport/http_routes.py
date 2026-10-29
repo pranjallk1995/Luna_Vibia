@@ -109,6 +109,7 @@ class VibiaHTTPRoutes:
         self._register_icons()
         self._register_tracks()
         self._register_favorites()
+        self._register_playback()
         self._register_downloads()
         self._register_uploads()
         self._register_hidden_tracks()
@@ -258,6 +259,14 @@ class VibiaHTTPRoutes:
 
         self.route("GET", "/api/favorites", favorites)
         self.route("POST", "/api/favorites", update_favorites)
+
+    def _register_playback(self) -> None:
+        playback_service = self.service.playback
+
+        async def playback(request: Request):
+            return await anyio.to_thread.run_sync(playback_service.player.live_status)
+
+        self.route("GET", "/api/playback", playback)
 
     def _register_hidden_tracks(self) -> None:
         hidden = self.service.hidden

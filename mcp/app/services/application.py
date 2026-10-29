@@ -929,7 +929,15 @@ class PlaybackService:
                 ),
                 "speakers": [option.as_row() for option in speakers],
             }
+        current = self.player.status()
+        if current["status"] == "playing" and current["tracks"] == clean_names and current["loop"] == loop:
+            # The same queue on another speaker: carry on where it is instead of restarting.
+            return self.player.switch(chosen)
         return self.player.play(queue, chosen, loop)
+
+    def switch_speaker(self, speaker: str) -> dict[str, Any]:
+        """Move what plays to ``speaker``, resuming the current track where it is."""
+        return self.player.switch(self.match(self.player.speakers(), speaker))
 
 
 class VibiaService:

@@ -52,6 +52,10 @@ class LunaVibiaAPI:
     def track_path(prefix: str, name: str, suffix: str = "") -> str:
         return f"{prefix}/{quote(name, safe='')}{suffix}"
 
+    def playback(self) -> dict[str, Any]:
+        """What plays on the host's speakers and the speaker sound reaches now."""
+        return self.request("GET", "/api/playback", timeout=UIConfig.PLAYBACK_TIMEOUT_SECONDS).json()
+
     # Visible tracks
 
     def metadata(self) -> list[dict[str, Any]]:
