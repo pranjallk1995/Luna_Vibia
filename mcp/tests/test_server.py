@@ -760,6 +760,48 @@ class PlaybackToolTests(ServerTestCase):
         status = self.call("get_playback_status", {})
         self.assertAlmostEqual(time.time() - status["started_at"], 30, delta=1)
 
+    def test_volume_tools_turn_the_current_speaker_up_down_and_mute_it(self) -> None:
+        class FakeWindows:
+            state = {"volume": 40, "muted": False, "name": "Echo Dot-PL7", "description": "Speakers (Echo Dot-PL7)"}
+
+            def volume(self):
+                return dict(self.state)
+
+            def set_volume(self, percent=None, change=None, muted=None):
+                if change is not None:
+                    percent = self.state["volume"] + change
+                if percent is not None:
+                    self.state["volume"] = max(0, min(100, percent))
+                if muted is not None:
+                    self.state["muted"] = muted
+                return dict(self.state)
+
+        self.service.playback.player = SpeakerPlayer(FakeWindows())
+        self.assertEqual(self.call("get_volume", {})["volume"], 40)
+        self.assertEqual(self.call("change_volume", {"by": 10})["volume"], 50)
+        self.assertEqual(self.call("change_volume", {"by": -25})["volume"], 25)
+        quiet = self.call("set_volume", {"percent": 5, "muted": True})
+        self.assertEqual((quiet["volume"], quiet["muted"]), (5, True))
+        with self.assertRaisesRegex(ToolError, "percent, muted"):
+            self.call("set_volume", {})
+        self.service.playback.player = SpeakerPlayer()
+        with self.assertRaisesRegex(ToolError, "Windows speaker helper"):
+            self.call("get_volume", {})
+
+    def test_windows_helper_sends_volume_changes(self) -> None:
+        helper = WindowsSpeakerHelper("http://helper", "token")
+
+        class Response:
+            is_error = False
+
+            def json(self):
+                return {"volume": 30, "muted": False}
+
+        with patch("httpx.request", return_value=Response()) as request:
+            helper.set_volume(change=-10)
+        method, url = request.call_args.args
+        self.assertEqual((method, url, request.call_args.kwargs["json"]), ("POST", "http://helper/speakers/volume", {"change": -10}))
+
     def test_windows_helper_reads_the_current_output_quickly(self) -> None:
         helper = WindowsSpeakerHelper("http://helper", "token")
         output = {"id": "x", "name": "Echo Dot-PL7", "description": "Speakers (Echo Dot-PL7)", "bluetooth": True}

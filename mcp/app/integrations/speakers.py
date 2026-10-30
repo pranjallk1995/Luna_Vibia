@@ -84,6 +84,14 @@ class WindowsSpeakerHelper:
             return None
         return {"name": output["name"], "description": output["description"], "bluetooth": output["bluetooth"]}
 
+    def volume(self) -> Row:
+        """The current output's volume (0-100), whether it is muted, and which output it is."""
+        return self._request("GET", "/speakers/volume", timeout=AppConfig.SPEAKER_OUTPUT_TIMEOUT_SECONDS)
+
+    def set_volume(self, percent: int | None = None, change: int | None = None, muted: bool | None = None) -> Row:
+        body = {key: value for key, value in (("percent", percent), ("change", change), ("muted", muted)) if value is not None}
+        return self._request("POST", "/speakers/volume", json=body, timeout=AppConfig.SPEAKER_OUTPUT_TIMEOUT_SECONDS)
+
 
 class SpeakerPlayer:
     """List the host's audio outputs and play a queue of files on one of them.
@@ -267,6 +275,22 @@ class SpeakerPlayer:
                 # this host (Luna Lumia's beat pulses) follow the track with their own clock.
                 state["started_at"] = round(time.time() - position, 3)
             return state
+
+    VOLUME_UNSUPPORTED = (
+        "Volume control needs the Windows speaker helper (LUNAVIBIA_SPEAKER_HELPER_URL); "
+        "on a PulseAudio host, change the volume there."
+    )
+
+    def volume(self) -> Row:
+        """The host's output volume; Bluetooth speakers follow Windows' volume for them."""
+        if self.windows is None:
+            raise SpeakerUnavailableError(self.VOLUME_UNSUPPORTED)
+        return self.windows.volume()
+
+    def set_volume(self, percent: int | None = None, change: int | None = None, muted: bool | None = None) -> Row:
+        if self.windows is None:
+            raise SpeakerUnavailableError(self.VOLUME_UNSUPPORTED)
+        return self.windows.set_volume(percent, change, muted)
 
     def output(self, playing_on: Row | None = None) -> Row | None:
         """Where sound goes now: Windows' live default, else the playing (or default) sink."""

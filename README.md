@@ -189,6 +189,7 @@ later, while Docling finishes its document, then runs that call on the CPU.
 - `play_tracks` - play tracks out loud, in order and optionally looped, on a speaker of the machine running Vibia. With several speakers connected and none named, nothing plays: it returns `choose_speaker` and the options so the LLM asks which one.
 - `list_speakers` - the connected speakers (under WSL, Windows' Bluetooth speakers), with the current output marked.
 - `switch_speaker` - move what is playing to another speaker; the current track resumes there at the second it had reached. `play_tracks` with the same queue does the same instead of restarting.
+- `get_volume`, `change_volume`, `set_volume` - the volume (0-100) of the speaker the host plays on now: read it, turn it up or down (`by`, e.g. 10 or -10), or set it and mute or unmute it. Under WSL this is Windows' volume for that output, which a Bluetooth speaker follows, so everything playing on it changes.
 - `get_playback_status` / `stop_playback` - what is playing (with `position_seconds` into the current track, and `track`: its caption, tags, tempo, and key), and stop it.
 
 [Luna Lumia](https://github.com/pranjallk1995/Luna_Lumia) reads the same status from `GET /api/playback?output=0`

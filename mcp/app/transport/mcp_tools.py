@@ -339,6 +339,31 @@ class VibiaMCPTools:
             return await offload(playback.player.stop)
 
         @server.tool()
+        async def get_volume() -> dict[str, Any]:
+            """The volume (0-100) of the speaker the host plays on now, whether it is muted,
+            and which speaker that is (name and description)."""
+            return await offload(playback.player.volume)
+
+        @server.tool()
+        async def change_volume(by: int) -> dict[str, Any]:
+            """Turn the speaker the host plays on up (by > 0) or down (by < 0), in percentage
+            points from -100 to 100, and return the new volume.
+
+            For "a bit louder" or "turn it down" use about 10; "a lot", about 25. Use
+            set_volume for an exact level. Changes the speaker's volume, not Vibia's
+            alone: everything playing on that speaker gets louder or quieter.
+            """
+            return await offload(playback.player.set_volume, None, by)
+
+        @server.tool()
+        async def set_volume(percent: int | None = None, muted: bool | None = None) -> dict[str, Any]:
+            """Set the speaker the host plays on to percent (0-100), and/or mute (muted=true)
+            or unmute it (muted=false). Returns the new volume."""
+            if percent is None and muted is None:
+                raise ValueError("Give percent, muted, or both.")
+            return await offload(playback.player.set_volume, percent, None, muted)
+
+        @server.tool()
         async def get_playback_status() -> dict[str, Any]:
             """Return what is playing: status, speaker, queued tracks, loop, now_playing, and position_seconds.
 

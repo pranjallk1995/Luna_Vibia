@@ -1,9 +1,16 @@
-# List Windows' connected Bluetooth speakers and switch the default output between them.
+# List Windows' connected Bluetooth speakers, switch the default output between them,
+# and read or change the default output's volume.
 # Called by speaker_helper.py through WSL interop; prints JSON.
 #   windows_audio.ps1 list
 #   windows_audio.ps1 set <endpoint-id>
 #   windows_audio.ps1 default
-param([Parameter(Mandatory)][ValidateSet("list", "set", "default")][string]$Command, [string]$EndpointId)
+#   windows_audio.ps1 volume
+#   windows_audio.ps1 set-volume <0-100>
+#   windows_audio.ps1 set-mute <true|false>
+param(
+    [Parameter(Mandatory)][ValidateSet("list", "set", "default", "volume", "set-volume", "set-mute")][string]$Command,
+    [string]$EndpointId
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -22,7 +29,7 @@ namespace LunaVibia {
 
     [Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     interface IMMDevice {
-        int Activate(ref Guid iid, int context, IntPtr parameters, [MarshalAs(UnmanagedType.IUnknown)] out object result);
+        [PreserveSig] int Activate(ref Guid iid, int context, IntPtr parameters, [MarshalAs(UnmanagedType.IUnknown)] out object result);
         int OpenPropertyStore(int access, out IntPtr store);
         [PreserveSig] int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
     }
@@ -38,7 +45,62 @@ namespace LunaVibia {
         [PreserveSig] int SetDefaultEndpoint([MarshalAs(UnmanagedType.LPWStr)] string id, int role);
     }
 
+    // The output's master volume, as the Windows volume slider shows it. Methods are
+    // listed in vtable order; only the master scalar and mute ones are called.
+    [Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IAudioEndpointVolume {
+        int RegisterControlChangeNotify(IntPtr notify);
+        int UnregisterControlChangeNotify(IntPtr notify);
+        int GetChannelCount(out uint count);
+        int SetMasterVolumeLevel(float levelDb, ref Guid context);
+        [PreserveSig] int SetMasterVolumeLevelScalar(float level, ref Guid context);
+        int GetMasterVolumeLevel(out float levelDb);
+        [PreserveSig] int GetMasterVolumeLevelScalar(out float level);
+        int SetChannelVolumeLevel(uint channel, float levelDb, ref Guid context);
+        int SetChannelVolumeLevelScalar(uint channel, float level, ref Guid context);
+        int GetChannelVolumeLevel(uint channel, out float levelDb);
+        int GetChannelVolumeLevelScalar(uint channel, out float level);
+        [PreserveSig] int SetMute([MarshalAs(UnmanagedType.Bool)] bool mute, ref Guid context);
+        [PreserveSig] int GetMute([MarshalAs(UnmanagedType.Bool)] out bool mute);
+    }
+
     public static class Audio {
+        static void Check(int result) {
+            if (result != 0) Marshal.ThrowExceptionForHR(result);
+        }
+
+        static IAudioEndpointVolume DefaultVolume() {
+            var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
+            IMMDevice device;
+            Check(enumerator.GetDefaultAudioEndpoint(0, 1, out device));  // eRender, eMultimedia
+            Guid iid = typeof(IAudioEndpointVolume).GUID;
+            object volume;
+            Check(device.Activate(ref iid, 23, IntPtr.Zero, out volume));  // CLSCTX_ALL
+            return (IAudioEndpointVolume)volume;
+        }
+
+        public static int Volume() {
+            float level;
+            Check(DefaultVolume().GetMasterVolumeLevelScalar(out level));
+            return (int)Math.Round(level * 100);
+        }
+
+        public static bool Muted() {
+            bool muted;
+            Check(DefaultVolume().GetMute(out muted));
+            return muted;
+        }
+
+        public static void SetVolume(int percent) {
+            Guid context = Guid.Empty;
+            Check(DefaultVolume().SetMasterVolumeLevelScalar(Math.Max(0, Math.Min(100, percent)) / 100f, ref context));
+        }
+
+        public static void SetMute(bool mute) {
+            Guid context = Guid.Empty;
+            Check(DefaultVolume().SetMute(mute, ref context));
+        }
+
         public static string DefaultOutput() {
             var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
             IMMDevice device;
@@ -87,6 +149,14 @@ switch ($Command) {
         $description = if ($endpoint) { $endpoint.FriendlyName } else { "" }
         $device = if ($description -match '\((.+)\)$') { $Matches[1] } else { $description }
         ConvertTo-Json -Compress -InputObject @{ id = $id; name = $device; description = $description }
+    }
+    # The default output's volume (0-100) and mute; set-* change it, then report it.
+    { $_ -in "volume", "set-volume", "set-mute" } {
+        if ($Command -eq "set-volume") { [LunaVibia.Audio]::SetVolume([int]$EndpointId) }
+        if ($Command -eq "set-mute") { [LunaVibia.Audio]::SetMute($EndpointId -eq "true") }
+        ConvertTo-Json -Compress -InputObject @{
+            id = [LunaVibia.Audio]::DefaultOutput(); volume = [LunaVibia.Audio]::Volume(); muted = [LunaVibia.Audio]::Muted()
+        }
     }
     # speaker_helper.py only passes IDs that "list" returned, so this skips the slow listing.
     "set" {
