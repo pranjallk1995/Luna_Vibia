@@ -7,7 +7,7 @@ from app.transport.branding import ServerBranding
 from app.core.config import AppConfig
 from app.data.database import Database
 from app.transport.http_routes import VibiaHTTPRoutes
-from app.transport.mcp_tools import VibiaMCPTools
+from app.transport.mcp_tools import SERVER_INSTRUCTIONS, VibiaMCPTools
 from app.core.models import MetadataRules
 from app.integrations.remote import TrackSourceResolver
 from app.data.repositories import TrackRepository, PublicURLRepository
@@ -35,7 +35,11 @@ class LunaVibiaApplication:
                 MetadataRules(config.max_tags, config.search_stop_words),
             ),
             ClapEncoder(device=config.clap_device),
-            VisiaImageCatalog(config.visia_api_url, config.placeholder_cover_id),
+            VisiaImageCatalog(
+                config.visia_api_url,
+                config.placeholder_cover_id,
+                companion_token=config.visia_companion_token,
+            ),
             SpeakerPlayer(
                 WindowsSpeakerHelper(config.speaker_helper_url, config.api_token)
                 if config.speaker_helper_url
@@ -44,7 +48,11 @@ class LunaVibiaApplication:
         )
         self.branding = ServerBranding(config.mcp_public_url)
         self.mcp = FastMCP(
-            "Luna Vibia", host=config.host, port=config.port, icons=self.branding.mcp_icons()
+            "Luna Vibia",
+            instructions=SERVER_INSTRUCTIONS,
+            host=config.host,
+            port=config.port,
+            icons=self.branding.mcp_icons(),
         )
         VibiaMCPTools(
             self.mcp,

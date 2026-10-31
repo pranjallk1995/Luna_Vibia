@@ -21,6 +21,9 @@ class AppConfig:
     CAPTION_CONNECT_TIMEOUT_SECONDS: ClassVar[float] = 10.0
     REMOTE_FETCH_TIMEOUT_SECONDS: ClassVar[float] = 30.0
     VISIA_TIMEOUT_SECONDS: ClassVar[float] = 10.0
+    # Storing a new cover waits for Visia to caption it with its vision model.
+    VISIA_STORE_TIMEOUT_SECONDS: ClassVar[float] = 300.0
+    VISIA_STORE_ATTEMPTS: ClassVar[int] = 3
     # ffprobe and ffmpeg on one file; a long file still decodes in seconds.
     AUDIO_TOOL_TIMEOUT_SECONDS: ClassVar[int] = 120
     # Listing the host's speakers asks its sound server; stopping waits for ffmpeg to exit.
@@ -65,6 +68,8 @@ class AppConfig:
     visia_api_url: str = "http://luna-visia-mcp:8000"
     # Visia image ID of the audio placeholder covering tracks no Visia image suits ("" = none yet).
     placeholder_cover_id: str = ""
+    # Credential for storing new covers in Luna Visia ("" = linking existing images only).
+    visia_companion_token: str = ""
     public_base_url: str = ""
     api_token: str = ""
     host: str = "0.0.0.0"
@@ -153,6 +158,9 @@ class AppConfig:
             r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", placeholder_cover_id
         ):
             raise RuntimeError("LUNAVIBIA_PLACEHOLDER_COVER_ID must be a Luna Visia image ID (a UUID).")
+        visia_companion_token = os.getenv("LUNAVISIA_COMPANION_TOKEN", "").strip()
+        if visia_companion_token and len(visia_companion_token) < 32:
+            raise RuntimeError("LUNAVISIA_COMPANION_TOKEN must contain at least 32 characters.")
         track_dir = Path(os.getenv("TRACK_DIR", "/data/tracks"))
         public_base_url = os.getenv("LUNAVIBIA_PUBLIC_BASE_URL", "").strip().rstrip("/")
         if public_base_url:
@@ -186,6 +194,7 @@ class AppConfig:
             caption_model=caption_model,
             visia_api_url=visia_api_url,
             placeholder_cover_id=placeholder_cover_id,
+            visia_companion_token=visia_companion_token,
             public_base_url=public_base_url,
             api_token=api_token,
         )

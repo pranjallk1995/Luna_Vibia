@@ -218,6 +218,27 @@ class CoverTests(VibiaServiceTestCase):
         url = f"https://a.test/api/public/images/{FakeVisia.VISIBLE_ID}/"
         self.assertEqual(VisiaImageCatalog.image_id(url), FakeVisia.VISIBLE_ID)
 
+    def test_storing_a_cover_retries_then_reports_visias_answer(self):
+        import httpx
+        from unittest.mock import patch
+
+        from app.integrations.visia import VisiaUnavailableError
+
+        def reply(status, body):
+            return httpx.Response(status, json=body, request=httpx.Request("POST", "http://visia.test"))
+
+        catalog = VisiaImageCatalog("http://visia.test", companion_token="t" * 32)
+        answers = [httpx.ReadTimeout("slow"), reply(502, {"error": "restarting"}), reply(201, {"public_url": "u"})]
+        with patch("app.integrations.visia.time.sleep"), patch("app.integrations.visia.httpx.post", side_effect=answers) as post:
+            self.assertEqual(catalog.store("song_cover", [], {"content_base64": "AAAA"})["public_url"], "u")
+        self.assertEqual(post.call_count, 3)
+        self.assertEqual(post.call_args.kwargs["headers"], {"Authorization": f"Bearer {'t' * 32}"})
+        with patch("app.integrations.visia.httpx.post", return_value=reply(400, {"error": "not an image"})):
+            with self.assertRaisesRegex(ValueError, "not an image"):
+                catalog.store("song_cover", [], {"content_base64": "AAAA"})
+        with self.assertRaisesRegex(VisiaUnavailableError, "LUNAVISIA_COMPANION_TOKEN"):
+            VisiaImageCatalog("http://visia.test").store("song_cover", [], {"content_base64": "AAAA"})
+
 
 class SearchAndPlaylistTests(VibiaServiceTestCase):
     def setUp(self):

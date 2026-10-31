@@ -358,6 +358,38 @@ class PlaceholderCoverToolTests(ServerTestCase):
         self.service.visible.covers = FakeVisia(FakeVisia.VISIBLE_ID)
         result = self.call("upload_track", {"name": "chat.wav", "content_base64": wav_payload_color()})
         self.assertEqual(result["cover_url"], f"https://visia.example.test/api/public/images/{FakeVisia.VISIBLE_ID}")
+        self.assertIn("update_track_cover", result["cover_hint"])
+
+    def test_generated_cover_is_stored_in_visia_and_set(self) -> None:
+        from fakes import FakeVisia
+
+        covers = self.service.visible.covers = FakeVisia()
+        file = {"download_url": "https://files.example.test/cover.png", "file_id": "f1"}
+        result = self.call("update_track_cover", {"name": "one.wav", "file": file})
+        self.assertEqual(covers.stored, [("one_cover", ["cover art", "luna vibia", "one"], {"file": file})])
+        self.assertEqual(result["cover_url"], f"https://visia.example.test/api/public/images/{FakeVisia.VISIBLE_ID}")
+        self.assertEqual((result["status"], result["visia"]["status"]), ("cover_updated", "created"))
+        tool = next(t for t in asyncio.run(self.server.list_tools()) if t.name == "update_track_cover")
+        self.assertEqual(tool.meta, {"openai/fileParams": ["file"]})
+
+    def test_visia_url_cover_is_linked_without_storing(self) -> None:
+        from fakes import FakeVisia
+
+        covers = self.service.visible.covers = FakeVisia()
+        url = f"https://visia.lunaapps.fyi/api/public/images/{FakeVisia.VISIBLE_ID}"
+        result = self.call("update_track_cover", {"name": "one.wav", "image_url": url})
+        self.assertEqual((covers.stored, result["visia"]["status"]), ([], "linked"))
+
+    def test_cover_is_unchanged_when_visia_cannot_store(self) -> None:
+        from fakes import FakeVisia
+        from app.integrations.visia import VisiaUnavailableError
+
+        self.service.visible.covers = FakeVisia(store_error=VisiaUnavailableError("down"))
+        before = self.repository.rows["one.wav"].get("cover_url")
+        for arguments in ({"content_base64": "AAAA"}, {}, {"image_url": "https://x.test/a.png", "content_base64": "AAAA"}):
+            with self.subTest(arguments), self.assertRaises(ToolError):
+                self.call("update_track_cover", {"name": "one.wav", **arguments})
+        self.assertEqual(self.repository.rows["one.wav"].get("cover_url"), before)
 
     def test_upload_with_unknown_cover_is_rejected_before_storing(self) -> None:
         from fakes import FakeVisia
@@ -366,6 +398,74 @@ class PlaceholderCoverToolTests(ServerTestCase):
         with self.assertRaises(ToolError):
             self.call("upload_track", {"name": "chat.wav", "content_base64": wav_payload_color(), "cover_url": url})
         self.assertFalse((self.root / "chat.wav").exists())
+
+    def test_generated_song_and_cover_art_upload_in_one_call(self) -> None:
+        from fakes import FakeVisia
+
+        covers = self.service.visible.covers = FakeVisia()
+        art = {"download_url": "https://files.example.test/art.png", "file_id": "img-1"}
+        result = self.call(
+            "upload_track",
+            {"name": "Night_Drive.wav", "content_base64": wav_payload_color(), "cover_file": art},
+        )
+        expected = f"https://visia.example.test/api/public/images/{FakeVisia.VISIBLE_ID}"
+        self.assertEqual(covers.stored, [("Night_Drive_cover", ["cover art", "luna vibia", "night drive"], {"file": art})])
+        self.assertEqual((result["status"], result["cover_url"]), ("created", expected))
+        self.assertEqual(self.repository.rows["Night_Drive.wav"]["cover_url"], expected)
+        self.assertEqual(result["cover_art"]["status"], "created")
+        self.assertNotIn("cover_hint", result)
+        tool = next(t for t in asyncio.run(self.server.list_tools()) if t.name == "upload_track")
+        self.assertEqual(tool.meta, {"openai/fileParams": ["file", "cover_file"]})
+
+    def test_non_visia_cover_url_is_stored_as_new_art(self) -> None:
+        from fakes import FakeVisia
+
+        covers = self.service.visible.covers = FakeVisia()
+        self.call(
+            "upload_track",
+            {"name": "Art.wav", "content_base64": wav_payload_color(), "cover_url": "https://cdn.example.test/art.png"},
+        )
+        self.assertEqual(covers.stored[0][2], {"image_url": "https://cdn.example.test/art.png"})
+
+    def test_failed_cover_art_keeps_the_saved_track(self) -> None:
+        from fakes import FakeVisia
+        from app.integrations.visia import VisiaUnavailableError
+
+        self.service.visible.covers = FakeVisia(FakeVisia.VISIBLE_ID, store_error=VisiaUnavailableError("Visia is down."))
+        result = self.call(
+            "upload_track",
+            {"name": "Kept.wav", "content_base64": wav_payload_color(), "cover_content_base64": "AAAA"},
+        )
+        self.assertEqual(result["status"], "created")
+        self.assertTrue((self.root / "Kept.wav").exists())
+        self.assertIn("update_track_cover", result["cover_error"])
+        self.assertEqual(result["cover_url"], f"https://visia.example.test/api/public/images/{FakeVisia.VISIBLE_ID}")
+
+    def test_retried_upload_adds_art_to_a_placeholder_duplicate(self) -> None:
+        from fakes import FakeVisia
+
+        covers = self.service.visible.covers = FakeVisia()
+        payload = wav_payload_color()
+        self.call("upload_track", {"name": "Again.wav", "content_base64": payload})
+        result = self.call("upload_track", {"name": "Again.wav", "content_base64": payload, "cover_content_base64": "AAAA"})
+        self.assertEqual(result["status"], "duplicate")
+        self.assertEqual(len(covers.stored), 1)
+        self.assertIsNotNone(self.repository.rows["Again.wav"]["cover_url"])
+
+    def test_two_covers_are_rejected_before_storing(self) -> None:
+        with self.assertRaisesRegex(ToolError, "one cover"):
+            self.call(
+                "upload_track",
+                {"name": "Two.wav", "content_base64": wav_payload_color(),
+                 "cover_url": "https://cdn.example.test/a.png", "cover_content_base64": "AAAA"},
+            )
+        self.assertFalse((self.root / "Two.wav").exists())
+
+    def test_server_instructions_ask_for_cover_art_with_songs(self) -> None:
+        from app.transport.mcp_tools import SERVER_INSTRUCTIONS
+
+        self.assertIn("cover_file", SERVER_INSTRUCTIONS)
+        self.assertIn("upload_track", SERVER_INSTRUCTIONS)
 
     def test_ui_clearing_a_cover_ignores_the_placeholder(self) -> None:
         from fakes import FakeVisia
@@ -406,8 +506,9 @@ class LowercaseTagToolTests(ServerTestCase):
 class ChatUploadToolTests(ServerTestCase):
     def test_upload_tool_declares_chatgpt_file_param(self) -> None:
         tool = next(t for t in asyncio.run(self.server.list_tools()) if t.name == "upload_track")
-        self.assertEqual(tool.meta, {"openai/fileParams": ["file"]})
+        self.assertEqual(tool.meta, {"openai/fileParams": ["file", "cover_file"]})
         self.assertIn("download_url", json.dumps(tool.inputSchema["properties"]["file"]))
+        self.assertIn("image file", json.dumps(tool.inputSchema["properties"]["cover_file"]))
         self.assertNotIn("name", tool.inputSchema.get("required", []))
 
     def test_upload_from_chatgpt_file_reference(self) -> None:
@@ -467,6 +568,7 @@ class UploadLinkRouteTests(ServerTestCase):
             reused = client.post(path, content=wav_bytes_color("PNG", "orange"))
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.json()["name"], "cat.wav")
+        self.assertIn("update_track_cover", response.json()["cover_hint"])
         self.assertEqual(reused.status_code, 404)
 
     def test_multipart_upload(self) -> None:

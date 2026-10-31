@@ -1,8 +1,10 @@
-"""Verify cover-art URLs against the Luna Visia image catalog."""
+"""Verify cover-art URLs against the Luna Visia image catalog, and store new covers there."""
 
 from __future__ import annotations
 
 import re
+import time
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -37,10 +39,67 @@ class VisiaImageCatalog:
         api_url: str,
         placeholder_image_id: str = "",
         timeout: float = AppConfig.VISIA_TIMEOUT_SECONDS,
+        companion_token: str = "",
     ) -> None:
         self.api_url = api_url.rstrip("/")
         self.placeholder_image_id = placeholder_image_id.lower()
         self.timeout = timeout
+        self.companion_token = companion_token
+
+    @classmethod
+    def is_visia_url(cls, cover_url: str) -> bool:
+        try:
+            cls.image_id(cover_url)
+        except ValueError:
+            return False
+        return True
+
+    def store(self, name: str, tags: list[str], source: dict[str, Any]) -> dict[str, Any]:
+        """Store a new image in Visia; return its status, name, and canonical public URL.
+
+        ``source`` holds one of image_url, content_base64, or file, as Visia's
+        upload_image takes them. Visia answers identical bytes with the image it
+        already stores, so retrying after a dropped connection never duplicates it.
+        """
+        if not self.companion_token:
+            raise VisiaUnavailableError(
+                "Storing covers in Luna Visia is off: set LUNAVISIA_COMPANION_TOKEN to the "
+                "same value in Luna Vibia and Luna Visia."
+            )
+        body = {"name": name, "tags": tags, **source}
+        headers = {"Authorization": f"Bearer {self.companion_token}"}
+        for attempt in range(AppConfig.VISIA_STORE_ATTEMPTS):
+            try:
+                response = httpx.post(
+                    f"{self.api_url}/api/companion/images",
+                    json=body,
+                    headers=headers,
+                    timeout=AppConfig.VISIA_STORE_TIMEOUT_SECONDS,
+                )
+            except httpx.TransportError as error:
+                failure = f"{type(error).__name__}: {error}"
+            else:
+                if response.status_code < 500:
+                    break
+                failure = f"HTTP {response.status_code}: {self.error_detail(response)}"
+            if attempt + 1 < AppConfig.VISIA_STORE_ATTEMPTS:
+                time.sleep(2**attempt)
+        else:
+            raise VisiaUnavailableError(f"Luna Visia could not store the cover ({failure}); try again.")
+        if response.status_code == 401:
+            raise VisiaUnavailableError(
+                "Luna Visia rejected Luna Vibia's LUNAVISIA_COMPANION_TOKEN; set the same value in both apps."
+            )
+        if response.status_code >= 400:
+            raise ValueError(f"Luna Visia did not store the cover: {self.error_detail(response)}")
+        return response.json()
+
+    @staticmethod
+    def error_detail(response: httpx.Response) -> str:
+        try:
+            return str(response.json().get("error") or response.text)
+        except ValueError:
+            return response.text
 
     @classmethod
     def image_id(cls, cover_url: str) -> str:

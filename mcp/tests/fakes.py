@@ -281,8 +281,20 @@ class FakeVisia(VisiaImageCatalog):
     VISIBLE_ID = "11111111-2222-3333-4444-555555555555"
     HIDDEN_ID = "99999999-8888-7777-6666-555555555555"
 
-    def __init__(self, placeholder_image_id: str = "") -> None:
+    def __init__(self, placeholder_image_id: str = "", store_error: Exception | None = None) -> None:
         super().__init__("http://visia.test", placeholder_image_id)
+        self.stored: list[tuple[str, list[str], dict]] = []
+        self.store_error = store_error
+
+    def store(self, name, tags, source):
+        """Pretend Visia stored the image as the visible one."""
+        if self.store_error:
+            raise self.store_error
+        self.stored.append((name, tags, source))
+        return {
+            "status": "created", "name": f"{name}.png", "image_id": self.VISIBLE_ID,
+            "public_url": f"https://visia.example.test/api/public/images/{self.VISIBLE_ID}",
+        }
 
     def images(self):
         return [

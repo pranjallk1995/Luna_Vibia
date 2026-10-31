@@ -15,6 +15,18 @@ Result = TypeVar("Result")
 
 # ChatGPT passes attachments to parameters listed here as {download_url, file_id}.
 FILE_PARAMS_META = {"openai/fileParams": ["file"]}
+UPLOAD_FILE_PARAMS_META = {"openai/fileParams": ["file", "cover_file"]}
+
+# Read by MCP clients when they connect, before any tool is chosen.
+SERVER_INSTRUCTIONS = (
+    "Every track in Luna Vibia has cover art from Luna Visia. When you generate a song "
+    "for Vibia, generate its cover art before calling upload_track: landscape with a 3:2 "
+    "aspect ratio (4.5 x 3, e.g. 1536x1024), fitting its mood, genre, and title, with no "
+    "text. Then pass both in one call: the audio as file or track_url and the art as "
+    "cover_file (or cover_url / cover_content_base64). Do not upload generated music "
+    "without its cover. Vibia stores the art in Luna Visia and sets it as the cover. If "
+    "the art could not be made or stored, add it right after with update_track_cover."
+)
 
 
 class FileReference(BaseModel):
@@ -43,6 +55,25 @@ FileInput = Annotated[
                 {"type": "null"},
             ],
             "description": "An attached audio file passed by the chat client.",
+        }
+    ),
+]
+ImageFileInput = Annotated[
+    FileReference | None,
+    WithJsonSchema(
+        {
+            "anyOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "download_url": {"type": "string"},
+                        "file_id": {"type": "string"},
+                    },
+                    "required": ["download_url"],
+                },
+                {"type": "null"},
+            ],
+            "description": "An image file from the chat client: one you generated or the user attached.",
         }
     ),
 ]
@@ -385,12 +416,13 @@ class VibiaMCPTools:
             self.service.uploads,
         )
 
-        def upload(name, base64_data, track_url, file, title, artist, notes, cover_url):
+        def upload(name, base64_data, track_url, file, given, cover_url, cover_art):
             source = sources.resolve(base64_data, track_url, file.model_dump() if file else None)
-            given = {"title": title, "artist": artist, "notes": notes}
-            return visible.upload_with_cover(name or source.suggested_name, source.data, given, cover_url)
+            return visible.upload_with_cover(
+                name or source.suggested_name, source.data, given, cover_url, cover_art
+            )
 
-        @server.tool(meta=FILE_PARAMS_META)
+        @server.tool(meta=UPLOAD_FILE_PARAMS_META)
         async def upload_track(
             name: str | None = None,
             file: FileInput = None,
@@ -400,11 +432,13 @@ class VibiaMCPTools:
             artist: str | None = None,
             notes: str | None = None,
             cover_url: str | None = None,
+            cover_file: ImageFileInput = None,
+            cover_content_base64: str | None = None,
         ) -> dict[str, Any]:
-            """Add a music track (MP3, WAV, FLAC, OGG/Opus, M4A); it is analyzed and captioned.
+            """Add a music track (MP3, WAV, FLAC, OGG/Opus, M4A) with its cover art; it is analyzed and captioned.
 
-            Provide exactly one source:
-            - file: an audio file the user attached in chat (ChatGPT supplies it).
+            Provide exactly one audio source:
+            - file: an audio file you generated or the user attached (ChatGPT supplies it).
             - track_url: a public HTTPS audio URL or an audio data URL.
             - content_base64: Base64 audio bytes; only practical for short clips.
             To upload a local file from a shell or code sandbox, use
@@ -412,22 +446,35 @@ class VibiaMCPTools:
 
             When you generated the music, pass the prompt or style you used as
             notes (and title/artist if any): it is stored with the track and
-            sharpens its caption and tags.
+            sharpens its caption and tags. Generate its cover art before this call
+            (never upload generated music without it): landscape with a 3:2 aspect
+            ratio (4.5 x 3, e.g. 1536x1024), fitting its mood, genre, and title,
+            with no text. Pass it in this same call as cover_file (the image you generated), cover_url (a public HTTPS
+            image URL or image data URL), or cover_content_base64. The art is stored
+            in Luna Visia, tagged "cover art", and set as the track's cover.
 
-            Always search Luna Visia for cover art that suits the track (its mood,
-            genre, or title) before uploading, and pass the public_url it returns
-            as cover_url (an immutable .../api/public/images/<image-id> URL). If
-            that search finds no suitable image, omit cover_url: the track then
-            gets the Luna Vibia audio placeholder stored in Visia. Never invent a
-            URL or pass a filename-based URL or data URI; a supplied URL is checked
-            against Luna Visia and the upload is rejected if it is not found.
+            For a track you did not generate, you may instead search Luna Visia for
+            cover art and pass the public_url it returns as cover_url (an immutable
+            .../api/public/images/<image-id> URL); it is checked against Visia and
+            the upload is rejected if it is not found. Without any cover the track
+            gets the Luna Vibia audio placeholder and the result has a cover_hint:
+            follow it straight away with update_track_cover.
+
+            The track is saved before new cover art is stored. If the art cannot
+            be stored, the result's cover_error says so: retry with
+            update_track_cover rather than uploading the track again.
 
             name is optional. The extension is corrected to match the audio
             format, a taken name gets a numeric suffix, and an exact duplicate of a
             stored track returns status "duplicate" instead of a second copy.
             Maximum size: 200 MiB. Analysis takes about half a minute.
             """
-            return await offload(upload, name, content_base64, track_url, file, title, artist, notes, cover_url)
+            given = {"title": title, "artist": artist, "notes": notes}
+            cover_art = {
+                "file": cover_file.model_dump() if cover_file else None,
+                "content_base64": cover_content_base64,
+            }
+            return await offload(upload, name, content_base64, track_url, file, given, cover_url, cover_art)
 
         @server.tool()
         def create_upload_link(name: str, replace: bool = False) -> dict[str, Any]:
@@ -437,8 +484,8 @@ class VibiaMCPTools:
             the track as a file: POST its bytes to upload_url, for example with the
             returned curl_example. The link expires after 15 minutes. With
             replace=true, name must be an existing visible track to overwrite.
-            After a new upload, give it a cover with set_track_cover: search Luna
-            Visia first, and omit cover_url for the audio placeholder if none fits.
+            After a new upload, give it a cover: generate cover art and pass it to
+            update_track_cover (the upload's cover_hint says so too).
             """
             return uploads.create_link(name, replace)
 
@@ -472,8 +519,37 @@ class VibiaMCPTools:
             Luna Visia and rejected if the image is missing or hidden. If no image
             fits, omit cover_url: the track then shows the Luna Vibia audio
             placeholder stored in Visia. Never pass a filename-based URL or data URI.
+            To use cover art you generated, call update_track_cover instead.
             """
             return {"status": "cover_updated", **await offload(visible.set_cover, name, cover_url, True)}
+
+        @server.tool(meta=FILE_PARAMS_META)
+        async def update_track_cover(
+            name: str,
+            file: ImageFileInput = None,
+            image_url: str | None = None,
+            content_base64: str | None = None,
+        ) -> dict[str, Any]:
+            """Store new cover art in Luna Visia and set it as a track's cover, in one call.
+
+            Use this when the user asks to generate or change a track's cover, or
+            when an upload returns a cover_hint. If you can generate images, first
+            create cover art that fits the track's mood, genre, or title (no text),
+            landscape with a 3:2 aspect ratio (4.5 x 3, e.g. 1536x1024), then pass
+            exactly one of:
+            - file: the image you generated or the user attached (ChatGPT supplies it).
+            - image_url: a public HTTPS image URL, or an image data URL.
+            - content_base64: Base64 image bytes; only practical for small images.
+            The image is captioned and tagged "cover art" in Visia; the cover only
+            changes once Visia has stored it, and retrying with the same image is
+            safe. A Luna Visia public_url as image_url is linked without storing.
+            """
+            source = {
+                "file": file.model_dump() if file else None,
+                "image_url": image_url,
+                "content_base64": content_base64,
+            }
+            return {"status": "cover_updated", **await offload(visible.update_cover, name, source)}
 
         @server.tool()
         def update_track_metadata(

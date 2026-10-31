@@ -27,7 +27,7 @@ from app.integrations.audio import AudioProbe, MusicFeatures
 from app.integrations.captioning import OllamaCaptioner
 from app.integrations.clap import ClapEncoder
 from app.integrations.speakers import Speaker, SpeakerPlayer
-from app.integrations.visia import VisiaImageCatalog
+from app.integrations.visia import VisiaImageCatalog, VisiaUnavailableError
 
 
 # The compact view of a track returned to LLM clients when listing or searching.
@@ -350,17 +350,74 @@ class VisibleTrackService(TrackCollectionService):
         data: bytes,
         given: dict[str, str] | None,
         cover_url: str | None,
+        cover_art: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Upload from an LLM client: a new track always gets a Visia cover or the placeholder.
 
-        The cover is checked before the slow analysis, so a bad URL fails fast.
-        A duplicate keeps the cover it already has.
+        ``cover_url`` is either an existing Visia image, checked before the slow
+        analysis so a bad URL fails fast, or new cover art like ``cover_art``
+        (file or content_base64). New art is stored in Visia after the track is
+        saved: if that fails, the track keeps the placeholder and the result's
+        cover_error says to retry with update_track_cover. A duplicate keeps its
+        cover, unless it only has the placeholder and new art was given.
         """
-        cover = self.cover_or_placeholder(cover_url)
+        art = {field: value for field, value in (cover_art or {}).items() if value not in (None, "")}
+        url = (cover_url or "").strip()
+        if url and not self.covers.is_visia_url(url):
+            art = {**art, "image_url": url}
+            url = ""
+        if len(art) > 1:
+            raise ValueError("Pass one cover: cover_file, cover_url, or cover_content_base64.")
+        cover = self.cover_or_placeholder(url or None)
         result = self.upload(requested_name, data, given)
-        if result["status"] == "created" and cover:
+        created = result["status"] == "created"
+        if created and cover:
             result["cover_url"] = self.tracks.set_cover(result["name"], cover)["cover_url"]
+        if art and (created or result.get("cover_url") in (None, self.cover_or_placeholder(None))):
+            try:
+                covered = self.update_cover(result["name"], art)
+            except (VisiaUnavailableError, ValueError) as error:
+                result["cover_error"] = (
+                    f"The track is saved, but its cover art is not: {error} "
+                    f"Retry with update_track_cover for {result['name']}."
+                )
+            else:
+                result["cover_url"], result["cover_art"] = covered["cover_url"], covered["visia"]
+        elif created and not url:
+            result["cover_hint"] = self.COVER_HINT.format(name=result["name"])
         return result
+
+    COVER_TAGS = ["cover art", "luna vibia"]
+    COVER_HINT = (
+        "{name} has no cover art yet. Now generate cover art that fits its mood and genre "
+        "(landscape, 3:2 aspect ratio, 4.5 x 3, no text) and pass it to update_track_cover; "
+        "it is stored in Luna Visia and set as the cover."
+    )
+
+    def update_cover(self, name: str, source: dict[str, Any]) -> Row:
+        """Set a track's cover from a Luna Visia public_url, or from a new image stored there first.
+
+        ``source`` holds one of image_url, content_base64, or file. The cover only
+        changes once Visia has the image.
+        """
+        self.path(name)
+        supplied = {field: value for field, value in source.items() if value not in (None, "")}
+        if len(supplied) != 1:
+            raise ValueError(
+                "Provide exactly one of file, image_url, or content_base64: the cover you "
+                "generated, or a Luna Visia public_url."
+            )
+        url = supplied.get("image_url")
+        if isinstance(url, str) and self.covers.is_visia_url(url):
+            image = {"status": "linked", "public_url": self.covers.resolve(url)}
+        else:
+            stem = Path(name).stem
+            tags = [*self.COVER_TAGS, stem.replace("_", " ").casefold()]
+            image = self.covers.store(f"{stem}_cover", tags, supplied)
+        return {
+            **summarize(self.tracks.set_cover(name, image["public_url"])),
+            "visia": {field: image.get(field) for field in ("status", "name", "image_id")},
+        }
 
     def cover_or_placeholder(self, cover_url: str | None) -> str | None:
         """Visia's canonical URL for ``cover_url``, or the audio placeholder when none was given."""
@@ -712,7 +769,10 @@ class UploadLinkService:
         try:
             if ticket.replace:
                 return {"status": "modified", **self.visible.ingest_bytes(ticket.name, data, replace=True)}
-            return self.visible.upload(ticket.name or file_name, data)
+            result = self.visible.upload(ticket.name or file_name, data)
+            if result["status"] == "created":
+                result["cover_hint"] = self.visible.COVER_HINT.format(name=result["name"])
+            return result
         except BaseException:
             self.store.release(ticket)
             raise
