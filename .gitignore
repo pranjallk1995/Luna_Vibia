@@ -2,7 +2,6 @@
 .env
 .env.*
 !.env.example
-ui/.streamlit/secrets.toml
 
 # Python
 __pycache__/
@@ -14,3 +13,7 @@ __pycache__/
 # Editors and OS
 *.swp
 .DS_Store
+
+# Browser app
+ui/web/node_modules/
+ui/web/dist/
