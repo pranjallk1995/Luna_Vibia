@@ -35,7 +35,7 @@ Cover art comes from Luna Visia.
 
 ![Luna ecosystem architecture](docs/luna-ecosystem.svg)
 
-Every Luna app is a Streamlit UI plus a FastMCP service on Luna Sentia's
+Every Luna app is a React UI plus a FastMCP service on Luna Sentia's
 `luna_sentia_network`: its data lives in Sentia's PostgreSQL, people sign in
 through Sentia's `auth`, and model calls go to Sentia's Ollama. Orange lines are
 Visia image URLs that other apps use: food images for Vita, room images for
@@ -47,7 +47,7 @@ beats of the track Vibia plays, which Lumia's lights follow.
 
 | Component | Technology | Purpose |
 | --- | --- | --- |
-| UI (`luna-vibia-ui`, `:18506`) | Streamlit | Gallery and list views, track dialog with player, 4.5:3 cover, and inline editing |
+| UI (`luna-vibia-ui`, `:18506`) | React + TypeScript (Vite), served by a Starlette gateway | Gallery and list views, track dialog with player, 4.5:3 cover, and inline editing |
 | MCP (`luna-vibia-mcp`, `:18005`) | FastMCP + REST, LangGraph | Upload, analysis, search, playlists, covers; the UI calls it with a bearer token |
 | Listening | CLAP (GPU or CPU), librosa, ffprobe | Embedding, matched moods and instruments, tempo, key, energy |
 | Captions | Sentia's Ollama (`CAPTION_MODEL`, text only) | Caption and tags from what CLAP heard and the measurements |

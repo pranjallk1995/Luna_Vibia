@@ -78,7 +78,8 @@ services:
       - track_data:/data/tracks:ro
     develop:
       watch:
-        - action: sync
+        # The gateway restarts on Python changes; the browser app is built into the image.
+        - action: sync+restart
           path: ./ui
           target: /workspace/ui
           ignore:
@@ -87,6 +88,13 @@ services:
             - .pytest_cache/
             - requirements.txt
             - Dockerfile
+            - web/
+            # The built app exists only in the image; a stray host folder must not sync over it.
+            - static/
+        - action: rebuild
+          path: ./ui/web/src
+        - action: rebuild
+          path: ./ui/web/package.json
         - action: rebuild
           path: ./ui/requirements.txt
         - action: rebuild
@@ -95,6 +103,11 @@ services:
       sentia_network:
         aliases:
           - luna-vibia-ui
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/health', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     depends_on:
       mcp:
         condition: service_healthy

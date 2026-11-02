@@ -1,4 +1,5 @@
-.streamlit/secrets.toml
 __pycache__/
 *.py[cod]
 .pytest_cache/
+web/node_modules/
+web/dist/
