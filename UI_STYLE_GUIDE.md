@@ -373,6 +373,7 @@ guide or deliberately accepted here.
 | Visia | The content security policy has no `font-src 'self' data:`, so the browser refuses the font's inlined files. | Add it, as Vibia and Lexia have. |
 | Vita | Adds short aliases (`--panel`, `--text`, `--muted`, and others) for its chart and calendar rules. | `--lv-*` names. |
 | Lumia | Deleting a light, room, scheme, or schedule has no confirmation. | Nothing here deletes a stored file, so this is accepted for now. Revisit if mistaken deletes happen. |
+| Unia | In windows 1760px and wider, the page grows to `1720px` and the card grid to four columns, as in Visia, Vibia, and Lexia. | `max-width: 1180px`. Accepted, because the cards have room to use at that width. |
 | Unia | No navbar. Its one page is a grid of app cards, and the status summary above the grid (`.lu-summary`) takes the navbar's surface and `.2rem 0 1.15rem` margin. | Full-width navbar below the header. Accepted: Unia has nothing to navigate between. |
 | Unia | Checks each app at `/_stcore/health`, which every gateway keeps as an alias of `/health`. | Move to `/health` and remove the alias once every app has merged its React UI. |
 
