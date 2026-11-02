@@ -278,13 +278,12 @@ Name its classes `lv-pager-*`. `lv-page` is the page container.
 
 ## Galleries
 
-Visia and Vibia share one gallery design, built around the picture. Lexia has the
-numbered page selector but not yet the rest (see
-[Known deviations](#known-deviations)).
+Visia, Vibia, and Lexia share one gallery design, built around the picture.
 
 ### Cards
 
-- **Picture:** `3:2`, leading the card. A hover lifts it by `2px`, scales it to `1.015`,
+- **Picture:** `3:2`, leading the card; Lexia shows the top of the first page, where the
+  letterhead is. A hover lifts it by `2px`, scales it to `1.015`,
   and adds a shadow.
 - **Name:** the readable name from `readableName`, with no upload prefix, extension, or
   underscores, in primary text at body size. Downloads keep the stored file name.
@@ -292,7 +291,8 @@ numbered page selector but not yet the rest (see
   `ai info` tag is hidden by `visibleTags`, because nearly every item has it. Phones show
   one tag and a count; list view shows up to eight.
 - **Foot:** muted facts on the left and the `⋮` actions menu on the right. Visia shows
-  dimensions and size; Vibia shows length, tempo when known, and size.
+  dimensions and size; Vibia shows length, tempo when known, and size; Lexia shows type,
+  financial year, pages, and size, with a "needs review" flag above them when one applies.
 - **Favorite:** a heart on the picture, shown on hover, always shown when set or on touch
   screens. The Favorites section uses the same heart icon.
 - **Grid:** three columns, four from `1760px` with a `1720px` page, and two on phones.
@@ -306,11 +306,14 @@ sits below the stage.
 
 - Arrow buttons and the left and right keys step through the filtered list, wrapping at
   the ends, and the gallery follows, so closing lands on the item last seen.
-- Arrow keys do nothing while typing, or while an audio player has focus, because they
-  seek there.
+- Arrow keys do nothing while typing, in a focused list, or while an audio player has
+  focus, because they act on those instead.
 - Tags in the panel use the colored `lv-tag-*` styles. `tagSlot` picks the color from the
   tag's name, so a tag looks the same everywhere.
 - Hidden items have no rename, favorite, or cover controls.
+- Lexia's stage holds the page viewer: page number, zoom, a toggle that gives the page the
+  full width with the details below, and pages to drag when zoomed. At 100% the whole page
+  shows. Its panel is `32rem` wide, to fit the editable detail tables.
 - Vibia's stage holds the 3:2 cover above the audio player, and each track gets a new
   player, so stepping never keeps playing the last track.
 
@@ -363,12 +366,11 @@ guide or deliberately accepted here.
 
 | App | Deviation | Guide says |
 | --- | --- | --- |
-| Vita, Lumia, Fiora, Lexia, Unia | Use the system monospace stack. | Self-hosted Source Code Pro. |
-| Vita, Lumia, Fiora, Lexia | Navbar gap is `.35rem` with a `1rem` bottom margin; selected and hovered labels turn to primary text, without the hover lift. | `.2rem`, `.2rem 0 1.15rem`, muted labels, and `translateY(-1px)`. |
-| Lexia | Keeps the earlier gallery cards and a large document dialog, with its numbered page selector already in place. | The gallery design above. A document needs its page viewer and editable details side by side, so adopting it needs its own design. |
-| Visia, Vibia | Navbar uses `grid-template-columns: repeat(3, 1fr)`. | `grid-auto-flow: column`, which fits any number of sections. Harmless with three. |
-| Visia, Vibia | In windows 1760px and wider, the page grows to `1720px` and the gallery to four columns, so the header and navbar no longer line up with the other apps at those widths. | `max-width: 1180px`. Accepted, because a gallery wastes most of a wide window at 1180px. |
-| Visia | The content security policy has no `font-src 'self' data:`, so the browser refuses the font's inlined files. | Add it, as Vibia has. |
+| Vita, Lumia, Fiora, Unia | Use the system monospace stack. | Self-hosted Source Code Pro. |
+| Vita, Lumia, Fiora | Navbar gap is `.35rem` with a `1rem` bottom margin; selected and hovered labels turn to primary text, without the hover lift. | `.2rem`, `.2rem 0 1.15rem`, muted labels, and `translateY(-1px)`. |
+| Visia, Vibia, Lexia | Navbar uses `grid-template-columns: repeat(3, 1fr)`. | `grid-auto-flow: column`, which fits any number of sections. Harmless with three. |
+| Visia, Vibia, Lexia | In windows 1760px and wider, the page grows to `1720px` and the gallery to four columns, so the header and navbar no longer line up with the other apps at those widths. | `max-width: 1180px`. Accepted, because a gallery wastes most of a wide window at 1180px. |
+| Visia | The content security policy has no `font-src 'self' data:`, so the browser refuses the font's inlined files. | Add it, as Vibia and Lexia have. |
 | Vita | Adds short aliases (`--panel`, `--text`, `--muted`, and others) for its chart and calendar rules. | `--lv-*` names. |
 | Lumia | Deleting a light, room, scheme, or schedule has no confirmation. | Nothing here deletes a stored file, so this is accepted for now. Revisit if mistaken deletes happen. |
 | Unia | No navbar. Its one page is a grid of app cards, and the status summary above the grid (`.lu-summary`) takes the navbar's surface and `.2rem 0 1.15rem` margin. | Full-width navbar below the header. Accepted: Unia has nothing to navigate between. |
