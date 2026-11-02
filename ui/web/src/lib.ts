@@ -69,6 +69,19 @@ export const pageCount = (total: number, perPage: number) => Math.max(1, Math.ce
 export const pageOf = <T,>(items: T[], page: number, perPage: number) =>
   items.slice(page * perPage, (page + 1) * perPage);
 
+/**
+ * The pages to show, with null for a gap: always seven slots once there are more than
+ * seven pages, so the buttons do not shift as you move through them.
+ */
+export function pageSlots(page: number, count: number): (number | null)[] {
+  const all = Array.from({ length: count }, (_, index) => index);
+  if (count <= 7) return all;
+  const last = count - 1;
+  if (page <= 3) return [...all.slice(0, 5), null, last];
+  if (page >= last - 3) return [0, null, ...all.slice(last - 4)];
+  return [0, null, page - 1, page, page + 1, null, last];
+}
+
 /** A stored name that identical filenames can never collide on in the vault. */
 export function storedName(fileName: string): string {
   const prefix = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
