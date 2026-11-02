@@ -34,7 +34,7 @@ body {
   color: var(--lv-text);
   background: radial-gradient(circle at 82% -10%, rgba(255, 255, 255, 0.07), transparent 30rem), var(--lv-bg);
   background-attachment: fixed;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-family: "Source Code Pro Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: var(--luna-text-body);
   line-height: 1.5;
 }
@@ -205,11 +205,10 @@ a {
 
 .lv-nav {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 0.35rem;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.2rem;
   padding: 0.4rem;
-  margin-bottom: 1rem;
+  margin: 0.2rem 0 1.15rem;
   border: 1px solid var(--lv-border);
   border-radius: 0.9rem;
   background: var(--lv-surface);
@@ -226,20 +225,19 @@ a {
   background: var(--lv-control);
   color: var(--lv-muted);
   cursor: pointer;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
 }
 
 .lv-nav-item:hover {
   border-color: var(--lv-strong);
   background: var(--lv-control-hover);
-  color: var(--lv-text);
+  transform: translateY(-1px);
 }
 
 .lv-nav-active {
   border-color: var(--lv-strong);
   background: var(--lv-control-hover);
   box-shadow: 0 0 0 1px var(--lv-border);
-  color: var(--lv-text);
 }
 
 /* Search */
@@ -250,9 +248,9 @@ a {
   gap: 0.55rem;
   min-height: 2.625rem;
   padding: 0 0.8rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
   border: 1px solid var(--lv-border);
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
   background: var(--lv-surface);
 }
 
@@ -277,11 +275,17 @@ a {
   color: var(--lv-muted);
 }
 
+.lv-search-count {
+  flex: none;
+  color: var(--lv-muted);
+  font-size: var(--luna-text-small);
+}
+
 /* Gallery */
 
 .lv-gallery {
   display: grid;
-  gap: 1rem;
+  gap: 1.5rem 1rem;
   animation: lv-gallery-in 180ms ease-out both;
 }
 
@@ -311,13 +315,13 @@ a {
 .lv-thumbnail {
   position: relative;
   border-radius: 0.8rem;
-  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 180ms ease;
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 180ms ease;
 }
 
 .lv-thumbnail:hover {
   z-index: 2;
-  transform: translateY(-8px) scale(1.045);
-  filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.52)) drop-shadow(0 0 2px rgba(255, 255, 255, 0.42));
+  transform: translateY(-2px) scale(1.015);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--lv-strong);
 }
 
 .lv-thumbnail-open {
@@ -334,11 +338,12 @@ a {
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 420 / 248;
+  aspect-ratio: 3 / 2;
   border-radius: 0.8rem;
   object-fit: cover;
 }
 
+/* The heart sits on the image and appears on hover; a set favorite always shows. */
 .lv-favorite {
   position: absolute;
   top: 0.5rem;
@@ -348,12 +353,19 @@ a {
   justify-content: center;
   width: 2rem;
   height: 2rem;
+  padding: 0;
   border: 1px solid var(--lv-border);
   border-radius: 50%;
-  background: rgba(17, 17, 17, 0.72);
+  background: rgba(17, 17, 17, 0.78);
+  color: #f8fafc;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 120ms ease;
+  transition: opacity 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+
+.lv-favorite:hover {
+  border-color: var(--lv-strong);
+  background: rgba(17, 17, 17, 0.95);
 }
 
 .lv-thumbnail:hover .lv-favorite,
@@ -370,19 +382,10 @@ a {
   min-width: 0;
 }
 
-.lv-card-title {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin-top: 0.3rem;
-}
-
 .lv-card-name {
-  flex: 1;
-  min-width: 0;
+  margin: 0.6rem 0 0.3rem;
   overflow: hidden;
-  color: var(--lv-muted);
-  font-size: 0.875rem;
+  font-size: var(--luna-text-body);
   line-height: 1.25rem;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -393,17 +396,26 @@ a {
   flex: none;
 }
 
-.lv-menu-trigger {
+/* A full-size touch target that doesn't make the footer row any taller. */
+.lv-more {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 2rem;
+  width: 2.75rem;
+  height: 2.75rem;
   padding: 0;
+  margin: -0.7rem -0.7rem -0.7rem 0;
   border: 0;
-  border-radius: 0.35rem;
+  border-radius: 0.5rem;
   background: transparent;
+  color: var(--lv-muted);
   cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.lv-more:hover {
+  background: var(--lv-control-hover);
+  color: var(--lv-text);
 }
 
 .lv-menu-items {
@@ -423,12 +435,34 @@ a {
 .lv-card-tags {
   display: flex;
   align-items: flex-start;
-  flex-wrap: wrap;
   gap: 0.3rem;
-  height: 1.7rem;
-  padding: 0.05rem 0 0.15rem;
-  margin: 0.1rem 0 0.3rem;
   overflow: hidden;
+}
+
+/* Tags give way with an ellipsis so the count after them always fits, the last one first. */
+.lv-card-tags .lv-tag-quiet {
+  display: inline-block;
+  flex: 0 1 auto;
+  min-width: 2.5rem;
+  overflow: hidden;
+  border-color: var(--lv-border);
+  background: var(--lv-control);
+  color: var(--lv-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lv-card-tags .lv-tag-quiet:has(+ .lv-tag-more),
+.lv-card-tags .lv-tag-quiet:last-child {
+  flex-shrink: 1000;
+}
+
+.lv-tag-more {
+  color: var(--lv-muted);
+}
+
+.lv-card-tags .lv-tag-more-phone {
+  display: none;
 }
 
 .lv-tag {
@@ -462,14 +496,25 @@ a {
   opacity: 1;
 }
 
-.lv-card-facts {
+.lv-card-foot {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  margin-bottom: 0.5rem;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.lv-card-facts {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
   color: var(--lv-muted);
-  font-size: 0.7rem;
+  font-size: 0.68rem;
+  line-height: 1.1rem;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .lv-pager {
@@ -662,38 +707,148 @@ a {
   gap: 0.6rem;
 }
 
-.lv-preview-image {
-  display: block;
-  width: 100%;
-  max-height: 68vh;
-  margin-bottom: 0.45rem;
-  border-radius: 0.8rem;
-  object-fit: contain;
-  background: rgba(0, 0, 0, 0.25);
+/* Track view */
+
+.lv-viewer {
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  padding: 0;
+  margin: 0;
+  overflow: auto;
+  border: 0;
+  background: var(--lv-bg);
+  color: var(--lv-text);
 }
 
-.lv-detail {
+/* The page behind stays still, and its scrollbar space doesn't show beside the viewer. */
+html:has(.lv-viewer[open]) {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
+.lv-viewer-body {
   display: flex;
-  gap: 0.65rem;
-  padding: 0.55rem 0.65rem;
-  margin-top: 0.45rem;
+  height: 100%;
+}
+
+.lv-stage {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 1.5rem 4.5rem;
+}
+
+.lv-stage img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 0.8rem;
+  object-fit: contain;
+}
+
+.lv-step {
+  position: absolute;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  margin-top: -1.375rem;
   border: 1px solid var(--lv-border);
-  border-radius: 0.7rem;
+  border-radius: 50%;
+  background: var(--lv-control);
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.lv-step:hover {
+  border-color: var(--lv-strong);
+  background: var(--lv-control-hover);
+}
+
+.lv-step-prev {
+  left: 1rem;
+}
+
+.lv-step-next {
+  right: 1rem;
+}
+
+.lv-panel {
+  display: flex;
+  flex: 0 0 22.5rem;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.25rem;
+  overflow-y: auto;
+  border-left: 1px solid var(--lv-border);
   background: var(--lv-surface);
 }
 
-.lv-detail-icon {
-  display: inline-flex;
-  flex: none;
+.lv-panel .lv-icon-button {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+/* Full-size touch targets that don't push apart the text or tag rows beside them. */
+.lv-panel .lv-detail-line-top .lv-icon-button {
+  margin-top: -0.7rem;
+}
+
+.lv-preview-tags .lv-icon-button {
+  margin-block: -0.375rem;
+}
+
+.lv-panel-top {
+  display: flex;
   align-items: center;
-  height: 2rem;
+  justify-content: space-between;
+  color: var(--lv-muted);
+  font-size: var(--luna-text-small);
+}
+
+.lv-viewer-name .lv-detail-text {
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.lv-section {
+  margin: 0 0 0.4rem;
+  color: var(--lv-muted);
+  font-size: var(--luna-text-small);
+  font-weight: 400;
+}
+
+.lv-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.3rem 0.9rem;
+  margin: 0;
+  font-size: var(--luna-text-subtitle);
+}
+
+.lv-facts dt {
   color: var(--lv-muted);
 }
 
-.lv-detail-content {
-  flex: 1;
-  min-width: 0;
-  align-self: center;
+.lv-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.lv-panel-actions {
+  display: flex;
+  gap: 0.25rem;
+  padding-top: 0.75rem;
+  margin-top: auto;
+  border-top: 1px solid var(--lv-border);
 }
 
 .lv-detail-line {
@@ -715,10 +870,8 @@ a {
 
 .lv-preview-tags {
   display: flex;
-  flex: 1;
   flex-wrap: wrap;
   gap: 0.4rem;
-  min-width: 0;
   min-height: 2rem;
   align-items: center;
 }
@@ -854,11 +1007,29 @@ a {
   }
 }
 
-/* Touch screens have no hover, so favorites are always reachable. */
+/* Touch screens have no hover: favorites always show, with a finger-sized target. */
 
 @media (hover: none) {
   .lv-favorite {
     opacity: 1;
+  }
+
+  .lv-favorite::after {
+    content: "";
+    position: absolute;
+    inset: -0.375rem;
+  }
+}
+
+/* Wide windows: the page grows and the grid gains a column. Other Luna apps stay at 1180px, apart from Visia (see UI_STYLE_GUIDE.md). */
+
+@media (min-width: 1760px) {
+  .lv-page:not(.lv-gate) {
+    max-width: 1720px;
+  }
+
+  .lv-gallery-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -918,7 +1089,62 @@ a {
   }
 
   .lv-gallery-grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 0.6rem;
+  }
+
+  .lv-card-grid .lv-card-name {
+    margin-top: 0.4rem;
+    font-size: var(--luna-text-subtitle);
+  }
+
+  /* The menu's touch target may overlap the facts' row: only its icon needs clear space. */
+  .lv-card-grid .lv-card-foot {
+    gap: 0;
+  }
+
+  .lv-card-grid .lv-more {
+    margin-left: -0.6rem;
+  }
+
+  /* Half a phone's width fits one tag and a count. */
+  .lv-card-grid .lv-card-tags .lv-tag-quiet:nth-child(n + 2),
+  .lv-card-grid .lv-card-tags .lv-tag-more-wide {
+    display: none;
+  }
+
+  .lv-card-grid .lv-card-tags .lv-tag-more-phone {
+    display: inline-flex;
+  }
+
+  .lv-viewer-body {
+    flex-direction: column;
+    height: auto;
+    min-height: 100%;
+  }
+
+  .lv-stage {
+    flex: none;
+    padding: 1rem;
+  }
+
+  .lv-stage img {
+    max-height: 60dvh;
+  }
+
+  .lv-step-prev {
+    left: 0.25rem;
+  }
+
+  .lv-step-next {
+    right: 0.25rem;
+  }
+
+  .lv-panel {
+    flex: 1 1 auto;
+    overflow-y: visible;
+    border-top: 1px solid var(--lv-border);
+    border-left: 0;
   }
 
   .lv-card-list {
@@ -942,7 +1168,7 @@ a {
   }
 }
 
-/* Playback line and track dialog */
+/* Playback line and the stage's player */
 
 .lv-playback {
   display: flex;
@@ -973,34 +1199,25 @@ a {
 }
 
 .lv-player {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
-  align-items: center;
-  margin-bottom: 1rem;
+  align-items: stretch;
+  width: min(100%, 45rem);
+  max-height: 100%;
 }
 
-.lv-player-cover {
-  display: block;
+.lv-player img {
   width: 100%;
   height: auto;
-  aspect-ratio: 4.5 / 3;
-  border-radius: 0.8rem;
+  min-height: 0;
+  aspect-ratio: 3 / 2;
   object-fit: cover;
 }
 
-.lv-player-body {
-  display: grid;
-  gap: 0.45rem;
-  min-width: 0;
-}
-
 .lv-player audio {
+  flex: none;
   width: 100%;
-}
-
-.lv-player .lv-caption {
-  margin: 0;
 }
 
 .lv-cover-form {
@@ -1008,8 +1225,10 @@ a {
   gap: 0.4rem;
 }
 
-@media (max-width: 700px) {
-  .lv-player {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.lv-cover-form .lv-caption {
+  margin: 0;
+}
+
+.lv-panel .lv-button-wide {
+  margin-top: 0;
 }

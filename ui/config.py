@@ -59,8 +59,9 @@ class UIConfig:
     UPLOAD_TIMEOUT_SECONDS: ClassVar[float] = 360.0
     # A 200 MiB track grows by a third as base64, plus its JSON wrapper.
     MAX_REQUEST_BYTES: ClassVar[int] = 270 * 1024 * 1024
-    # Twice the 420 x 248 card, and a 4.5:3 cover for the track dialog.
-    COVER_SIZES: ClassVar[dict[str, tuple[int, int]]] = {"card": (840, 496), "large": (720, 480)}
+    # Twice the 420 x 280 card, and the player's cover, both 3:2.
+    # Changing the shape also needs a new `shape` in the web app's coverUrl.
+    COVER_SIZES: ClassVar[dict[str, tuple[int, int]]] = {"card": (840, 560), "large": (720, 480)}
     COVER_QUALITY: ClassVar[int] = 80
     COVER_CACHE_ENTRIES: ClassVar[int] = 256
     COVER_TIMEOUT_SECONDS: ClassVar[float] = 5.0
@@ -69,7 +70,7 @@ class UIConfig:
     # A cover Luna Visia could not give just now is asked for again soon.
     RETRY_CACHE_CONTROL: ClassVar[str] = "private, max-age=60"
     CONTENT_SECURITY_POLICY: ClassVar[str] = (
-        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+        "default-src 'self'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; "
         "object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     )
 

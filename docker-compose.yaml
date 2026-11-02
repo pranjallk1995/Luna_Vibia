@@ -89,6 +89,8 @@ services:
             - requirements.txt
             - Dockerfile
             - web/
+            # The built app exists only in the image; a stray host folder must not sync over it.
+            - static/
         - action: rebuild
           path: ./ui/web/src
         - action: rebuild

@@ -1,6 +1,19 @@
 import { X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 
+/** Opens the browser's native dialog for as long as the component is mounted. */
+export function useModal() {
+  const ref = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (dialog && !dialog.open) dialog.showModal();
+    return () => dialog?.close();
+  }, []);
+
+  return ref;
+}
+
 type Props = {
   title: string;
   size?: "small" | "large";
@@ -10,13 +23,7 @@ type Props = {
 
 /** A modal on the browser's native dialog, which traps focus and closes on Escape. */
 export function Dialog({ title, size = "small", onClose, children }: Props) {
-  const ref = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    const dialog = ref.current;
-    if (dialog && !dialog.open) dialog.showModal();
-    return () => dialog?.close();
-  }, []);
+  const ref = useModal();
 
   return (
     <dialog

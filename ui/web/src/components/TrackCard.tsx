@@ -2,9 +2,11 @@ import { Download, Eye, EyeOff, Heart, MoreVertical, Trash2 } from "lucide-react
 import { memo, useEffect, useRef, useState } from "react";
 
 import { coverUrl, downloadUrl, type TrackRecord, type Section } from "../api";
-import { displayName, durationLabel, sizeLabel } from "../lib";
+import { displayName, durationLabel, readableName, sizeLabel, visibleTags } from "../lib";
 
 export type CardAction = "open" | "favorite" | "delete" | "hide" | "restore";
+
+const TAGS_SHOWN = { grid: 3, list: 8 };
 
 type Props = {
   track: TrackRecord;
@@ -16,7 +18,7 @@ type Props = {
 function CardMenu({ track, section, onAction }: Pick<Props, "track" | "section" | "onAction">) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const name = displayName(track.name);
+  const name = readableName(track.name);
 
   useEffect(() => {
     if (!open) return;
@@ -42,7 +44,7 @@ function CardMenu({ track, section, onAction }: Pick<Props, "track" | "section" 
   return (
     <div className="lv-menu" ref={ref}>
       <button
-        className="lv-menu-trigger"
+        className="lv-more"
         type="button"
         aria-label={`Actions for ${name}`}
         aria-expanded={open}
@@ -52,7 +54,12 @@ function CardMenu({ track, section, onAction }: Pick<Props, "track" | "section" 
       </button>
       {open && (
         <div className="lv-menu-items">
-          <a className="lv-icon-button" href={downloadUrl(track, name)} aria-label="Download" title="Download">
+          <a
+            className="lv-icon-button"
+            href={downloadUrl(track, displayName(track.name))}
+            aria-label="Download"
+            title="Download"
+          >
             <Download size={17} />
           </a>
           <button className="lv-icon-button" type="button" aria-label="Delete" title="Delete" onClick={() => act("delete")}>
@@ -75,12 +82,19 @@ function CardMenu({ track, section, onAction }: Pick<Props, "track" | "section" 
 }
 
 function TrackCardBase({ track, section, layout, onAction }: Props) {
-  const name = displayName(track.name);
+  const name = readableName(track.name);
+  const tags = visibleTags(track.tags);
+  const hiddenTags = tags.length - TAGS_SHOWN[layout];
+  const facts = [
+    durationLabel(track.duration_seconds),
+    track.tempo_bpm ? `${Math.round(track.tempo_bpm)} BPM` : null,
+    sizeLabel(track.size_bytes),
+  ].filter(Boolean);
   return (
     <article className={`lv-card lv-card-${layout}`}>
       <div className="lv-thumbnail">
         <button className="lv-thumbnail-open" type="button" aria-label={`Open ${name}`} onClick={() => onAction("open", track)}>
-          <img src={coverUrl(track, "card")} alt="" width={420} height={248} loading="lazy" decoding="async" />
+          <img src={coverUrl(track, "card")} alt="" width={420} height={280} loading="lazy" decoding="async" />
         </button>
         {section !== "hidden" && (
           <button
@@ -95,29 +109,26 @@ function TrackCardBase({ track, section, layout, onAction }: Props) {
         )}
       </div>
       <div className="lv-card-details">
-        <div className="lv-card-title">
-          <span className="lv-card-name" title={name}>
-            {name}
-          </span>
-          <CardMenu track={track} section={section} onAction={onAction} />
-        </div>
+        <p className="lv-card-name" title={name}>
+          {name}
+        </p>
         <div className="lv-card-tags">
-          {(track.tags ?? []).map((tag, index) => (
-            <span className={`lv-tag lv-tag-${index % 6}`} key={tag}>
+          {tags.slice(0, TAGS_SHOWN[layout]).map((tag) => (
+            <span className="lv-tag lv-tag-quiet" key={tag}>
               {tag}
             </span>
           ))}
-        </div>
-        <div className="lv-card-facts">
-          <span>{durationLabel(track.duration_seconds)}</span>
-          <span>·</span>
-          {Boolean(track.tempo_bpm) && (
-            <>
-              <span>{Math.round(track.tempo_bpm!)} BPM</span>
-              <span>·</span>
-            </>
+          {hiddenTags > 0 && <span className="lv-tag lv-tag-more lv-tag-more-wide">+{hiddenTags}</span>}
+          {/* Phones show one tag in a grid card, so they need their own count. */}
+          {layout === "grid" && tags.length > 1 && (
+            <span className="lv-tag lv-tag-more lv-tag-more-phone">+{tags.length - 1}</span>
           )}
-          <span>{sizeLabel(track.size_bytes)}</span>
+        </div>
+        <div className="lv-card-foot">
+          <p className="lv-card-facts">
+            {facts.join(" · ")}
+          </p>
+          <CardMenu track={track} section={section} onAction={onAction} />
         </div>
       </div>
     </article>

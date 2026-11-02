@@ -1,4 +1,4 @@
-import { Eye, LayoutGrid, List, Lock, LogOut, Star, Upload, Volume2, type LucideIcon } from "lucide-react";
+import { Eye, Heart, LayoutGrid, List, Lock, LogOut, Upload, Volume2, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 
 import { usePlayback, type Section, type Settings } from "./api";
@@ -12,7 +12,7 @@ import { useUploads } from "./uploads";
 
 const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "view", label: "View Tracks", icon: Eye },
-  { id: "favorites", label: "Favorite Tracks", icon: Star },
+  { id: "favorites", label: "Favorite Tracks", icon: Heart },
   { id: "hidden", label: "Hidden Tracks", icon: Lock },
 ];
 

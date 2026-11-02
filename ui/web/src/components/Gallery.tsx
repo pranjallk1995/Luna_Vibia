@@ -37,7 +37,7 @@ export function Gallery({ section, layout, settings }: Props) {
   const count = pageCount(filtered.length, settings.tracks_per_page);
   const current = Math.min(page, count - 1);
   const tracks = pageOf(filtered, current, settings.tracks_per_page);
-  const opened = openName ? (data ?? []).find((track) => track.name === openName) : undefined;
+  const openIndex = filtered.findIndex((track) => track.name === openName);
 
   // Fetch the next page's thumbnails while idle, so paging forward shows them at once.
   useEffect(() => {
@@ -75,9 +75,16 @@ export function Gallery({ section, layout, settings }: Props) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // The gallery follows along behind the viewer, so closing it lands on the track last seen.
+  const stepViewer = (delta: number) => {
+    const index = (openIndex + delta + filtered.length) % filtered.length;
+    setOpenName(filtered[index].name);
+    setPage(Math.floor(index / settings.tracks_per_page));
+  };
+
   return (
     <>
-      <SearchBox label={COPY[section].label} value={query} onChange={changeQuery} />
+      <SearchBox label={COPY[section].label} value={query} count={data ? filtered.length : undefined} onChange={changeQuery} />
       {error && <p className="lv-alert lv-alert-error">{error.message}</p>}
       {isPending && <div className="lv-skeleton-grid" aria-label="Loading tracks" />}
       {data && !filtered.length && (
@@ -93,12 +100,17 @@ export function Gallery({ section, layout, settings }: Props) {
           <Pager page={current} count={count} onChange={changePage} />
         </>
       )}
-      {opened && (
+      {openIndex >= 0 && (
         <PreviewDialog
-          track={opened}
+          track={filtered[openIndex]}
+          position={openIndex + 1}
+          total={filtered.length}
+          next={filtered[(openIndex + 1) % filtered.length]}
           section={section}
           settings={settings}
           actions={actions}
+          onStep={stepViewer}
+          onAction={onAction}
           onClose={() => setOpenName(null)}
         />
       )}

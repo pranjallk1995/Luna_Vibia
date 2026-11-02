@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { displayName, durationLabel, matching, normalizedTag, pageCount, pageOf, sizeLabel, splitName, pageSlots } from "./lib";
+import { displayName, readableName, tagSlot, visibleTags, durationLabel, matching, normalizedTag, pageCount, pageOf, sizeLabel, splitName, pageSlots } from "./lib";
 import { describePlayback } from "./playback";
 
 const SPINX = { name: "Stone Spinx Pro", description: "Bluetooth Speakers (Stone Spinx Pro)" };
@@ -85,5 +85,21 @@ describe("pageSlots", () => {
       expect(slots).toHaveLength(7);
       for (const wanted of [0, page, 39]) expect(slots).toContain(wanted);
     }
+  });
+});
+
+describe("what cards show", () => {
+  it("reads names without prefix, extension, or underscores", () => {
+    expect(readableName(`${"a".repeat(32)}_my_song.mp3`)).toBe("my song");
+    expect(readableName("___.mp3")).toBe("___");
+  });
+
+  it("hides the system tag", () => {
+    expect(visibleTags(["AI  Info", "calm"])).toEqual(["calm"]);
+    expect(visibleTags(null)).toEqual([]);
+  });
+
+  it("colours a tag the same everywhere", () => {
+    expect(tagSlot("Lo  Fi")).toBe(tagSlot("lo fi"));
   });
 });

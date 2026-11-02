@@ -49,7 +49,21 @@ export function splitName(name: string): { stem: string; suffix: string } {
   return dot > 0 ? { stem: name.slice(0, dot), suffix: name.slice(dot) } : { stem: name, suffix: "" };
 }
 
+/** The name people read on screen: no upload prefix, extension, or underscores. */
+export function readableName(storedName: string): string {
+  const { stem } = splitName(displayName(storedName));
+  return stem.replace(/_+/g, " ").trim() || stem;
+}
+
 export const normalizedTag = (tag: string) => tag.toLowerCase().split(/\s+/).filter(Boolean).join(" ");
+
+/** Tags worth showing: almost every track carries the system's "ai info" tag, so it says nothing. */
+export const visibleTags = (tags: string[] | null | undefined) =>
+  (tags ?? []).filter((tag) => normalizedTag(tag) !== "ai info");
+
+/** A tag's colour slot follows its name, so one tag looks the same on every track. */
+export const tagSlot = (tag: string) =>
+  Array.from(normalizedTag(tag)).reduce((sum, character) => sum + character.charCodeAt(0), 0) % 6;
 
 type Searchable = { name: string; tags?: string[] | null };
 

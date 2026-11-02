@@ -53,7 +53,8 @@ const segment = encodeURIComponent;
 
 export function coverUrl(track: TrackRecord, size: "card" | "large") {
   const cover = track.cover_url ? `&cover=${segment(track.cover_url)}` : "";
-  return `/app/covers/${segment(track.name)}?size=${size}${cover}`;
+  // Browsers keep covers for a year, so a new shape needs a new URL: change `shape` with COVER_SIZES.
+  return `/app/covers/${segment(track.name)}?size=${size}&shape=3x2${cover}`;
 }
 
 export const fileUrl = (track: TrackRecord) => `/app/files/${segment(track.name)}?v=${track.version}`;
