@@ -380,6 +380,17 @@ class PlaceholderCoverToolTests(ServerTestCase):
         result = self.call("update_track_cover", {"name": "one.wav", "image_url": url})
         self.assertEqual((covers.stored, result["visia"]["status"]), ([], "linked"))
 
+    def test_failed_cover_is_logged_without_the_file_link(self) -> None:
+        from fakes import FakeVisia
+
+        error = ValueError("no https://files.example.test/cover.png?sig=1 here")
+        self.service.visible.covers = FakeVisia(store_error=error)
+        file = {"download_url": "https://files.example.test/cover.png?sig=1"}
+        with self.assertLogs("app.transport.mcp_tools", "WARNING") as logs, self.assertRaises(ToolError):
+            self.call("update_track_cover", {"name": "one.wav", "file": file})
+        self.assertIn("update_track_cover failed for 'one.wav' (given: ['file']): ValueError: no <link> here", logs.output[0])
+        self.assertNotIn("sig=1", logs.output[0])
+
     def test_cover_is_unchanged_when_visia_cannot_store(self) -> None:
         from fakes import FakeVisia
         from app.integrations.visia import VisiaUnavailableError

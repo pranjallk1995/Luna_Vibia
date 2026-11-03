@@ -1,5 +1,7 @@
 """MCP tools that let LLM clients manage Luna Vibia tracks."""
 
+import logging
+import re
 from collections.abc import Callable
 from typing import Annotated, Any, Literal, TypeVar
 
@@ -27,6 +29,10 @@ SERVER_INSTRUCTIONS = (
     "without its cover. Vibia stores the art in Luna Visia and sets it as the cover. If "
     "the art could not be made or stored, add it right after with update_track_cover."
 )
+
+
+logger = logging.getLogger(__name__)
+LINK = re.compile(r"https?://\S+")
 
 
 class FileReference(BaseModel):
@@ -131,6 +137,13 @@ RenameRequests = Annotated[
         }
     ),
 ]
+
+
+def log_image_failure(tool: str, subject: str, source: dict[str, Any], error: Exception) -> None:
+    """Record a failed image call, leaving out links: chat file links are signed."""
+    given = [field for field, value in source.items() if value not in (None, "")]
+    message = LINK.sub("<link>", str(error))
+    logger.warning("%s failed for %r (given: %s): %s: %s", tool, subject, given, type(error).__name__, message)
 
 
 async def offload(function: Callable[..., Result], *args: Any) -> Result:
@@ -543,13 +556,19 @@ class VibiaMCPTools:
             The image is captioned and tagged "cover art" in Visia; the cover only
             changes once Visia has stored it, and retrying with the same image is
             safe. A Luna Visia public_url as image_url is linked without storing.
+            If passing a file fails, give it to Luna Visia's upload_image instead,
+            then call this with the public_url it returns as image_url.
             """
             source = {
                 "file": file.model_dump() if file else None,
                 "image_url": image_url,
                 "content_base64": content_base64,
             }
-            return {"status": "cover_updated", **await offload(visible.update_cover, name, source)}
+            try:
+                return {"status": "cover_updated", **await offload(visible.update_cover, name, source)}
+            except Exception as error:
+                log_image_failure("update_track_cover", name, source, error)
+                raise
 
         @server.tool()
         def update_track_metadata(
