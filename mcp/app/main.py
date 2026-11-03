@@ -6,7 +6,7 @@ from app.transport.branding import ServerBranding
 from app.core import tenancy
 from app.core.config import AppConfig
 from app.data.database import Database
-from app.data.tenants import adopt_loose_files
+from app.data.tenants import adopt_loose_files, remove_folder
 from app.transport.luna_mcp import LunaMCP
 from app.transport.http_routes import VibiaHTTPRoutes
 from app.transport.mcp_tools import SERVER_INSTRUCTIONS, VibiaMCPTools
@@ -57,6 +57,8 @@ class LunaVibiaApplication:
         self.branding = ServerBranding(config.mcp_public_url)
         self.mcp = LunaMCP(
             "Luna Vibia",
+            app="vibia",
+            remove_user=self.remove_user,
             public_url=config.mcp_public_url,
             api_token=config.api_token,
             open_paths=("/api/public/", "/api/downloads/", "/api/uploads/"),
@@ -73,6 +75,13 @@ class LunaVibiaApplication:
             ),
         )
         VibiaHTTPRoutes(self.mcp, self.service, self.branding, config.api_token)
+
+    def remove_user(self, user_id: str) -> None:
+        """Delete everything this person has in this app."""
+        self.database.tenants.remove(user_id)
+        remove_folder(self.config.track_dir, user_id)
+        self.service.downloads.store.remove_user(user_id)
+
 
     def run(self) -> None:
         """Serve Luna Vibia over the streamable HTTP transport."""

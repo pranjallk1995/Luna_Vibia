@@ -2,6 +2,7 @@
 
 import asyncio
 import contextvars
+import os
 import threading
 import unittest
 
@@ -12,7 +13,7 @@ from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from app.core import tenancy
-from app.transport.luna_mcp import RestUsers, SentiaTokenVerifier
+from app.transport.luna_mcp import LunaMCP, RestUsers, SentiaTokenVerifier
 
 TOKEN = "t" * 32
 COMPANION = "c" * 32
@@ -84,6 +85,54 @@ class IdentityTests(WithoutTestUser):
             self.assertEqual(shared.add(), 1)
 
 
+class DeletedPersonTests(WithoutTestUser):
+    def setUp(self) -> None:
+        super().setUp()
+        self.addCleanup(tenancy._removed.discard, "gone")
+
+    def test_nothing_runs_for_a_deleted_person_even_mid_request(self) -> None:
+        with tenancy.acting_as("gone"):
+            tenancy.forbid("gone")
+            with self.assertRaises(tenancy.NoUserError):
+                tenancy.current()
+        with self.assertRaises(tenancy.NoUserError), tenancy.acting_as("gone"):
+            pass
+
+    def test_the_owner_cannot_be_deleted(self) -> None:
+        with self.assertRaises(ValueError):
+            tenancy.forbid(tenancy.OWNER)
+        with self.assertRaises(ValueError):
+            tenancy.forbid("../x")
+
+
+class DeleteRouteTests(WithoutTestUser):
+    def setUp(self) -> None:
+        super().setUp()
+        self.addCleanup(os.environ.pop, "LUNA_SSO_URL", None)
+        os.environ["LUNA_SSO_URL"] = "https://auth.example"
+        self.removed = []
+        server = LunaMCP("Test", app="test", public_url="https://app.example", api_token=TOKEN, remove_user=self.removed.append)
+        self.client = TestClient(server.streamable_http_app(), raise_server_exceptions=False)
+
+    def delete(self, target: str, user: str = "owner", token: str = TOKEN):
+        return self.client.delete(f"/api/users/{target}", headers={"Authorization": f"Bearer {token}", "X-Luna-User": user})
+
+    def test_only_the_owner_with_the_private_token_can_delete(self) -> None:
+        self.assertEqual(self.delete("ab12").status_code, 200)
+        self.assertEqual(self.removed, ["ab12"])
+        self.assertEqual(self.delete("cd34", user="ab12").status_code, 403)
+        self.assertEqual(self.delete("cd34", token="w" * 32).status_code, 401)
+        self.assertEqual(self.client.delete("/api/users/cd34").status_code, 401)
+        self.assertEqual(self.removed, ["ab12"])
+
+    def test_the_owner_cannot_be_removed_through_it(self) -> None:
+        self.assertEqual(self.delete("owner").status_code, 400)
+        self.assertEqual(self.removed, [])
+
+    def test_mcp_needs_sign_in_on_this_server(self) -> None:
+        self.assertEqual(self.client.post("/mcp", json={}).status_code, 401)
+
+
 class RestUserTests(WithoutTestUser):
     def client(self) -> TestClient:
         async def whoami(request):
@@ -152,6 +201,15 @@ class VerifierTests(unittest.TestCase):
             ({}, 500),
         ):
             self.assertIsNone(self.verify(answer, status)[0], answer)
+
+    def test_a_hidden_app_refuses_the_people_it_is_hidden_from(self) -> None:
+        def verify(hidden):
+            respond = lambda request: httpx.Response(200, json={"active": True, "sub": "ab12", "hidden_apps": hidden})
+            verifier = SentiaTokenVerifier("http://sentia:8000", RESOURCE, httpx.MockTransport(respond), app="lumia")
+            return asyncio.run(verifier.verify_token("secret"))
+
+        self.assertIsNone(verify(["lumia"]))
+        self.assertIsNotNone(verify(["vibia"]))
 
     def test_a_token_is_only_asked_about_once_in_a_while(self) -> None:
         calls = []

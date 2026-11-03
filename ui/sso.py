@@ -47,8 +47,10 @@ class LunaSingleSignOn:
         allowed_emails: frozenset[str],
         config: SSOConfig,
         transport: httpx.AsyncBaseTransport | None = None,
+        app: str = "",
     ) -> None:
         self.allowed_emails = allowed_emails
+        self.app = app
         self.public_url = config.public_url.rstrip("/")
         self.internal_url = config.internal_url.rstrip("/")
         self.client = httpx.AsyncClient(transport=transport, timeout=SSOConfig.LOOKUP_TIMEOUT_SECONDS)
@@ -59,6 +61,8 @@ class LunaSingleSignOn:
     def is_allowed(self, user: dict[str, Any] | None) -> bool:
         email = str((user or {}).get("email", "")).strip().casefold()
         listed = "*" in self.allowed_emails or email in self.allowed_emails
+        if self.app in (user or {}).get("hidden_apps", []):
+            return False
         return bool(email and listed and (user or {}).get("email_verified") is True)
 
     async def lookup(self, token: str) -> dict[str, Any] | None:

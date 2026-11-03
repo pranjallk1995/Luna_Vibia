@@ -65,7 +65,7 @@ class UIGateway:
     ) -> None:
         self.config = config
         self.vaults: dict[str, TrackFiles] = {}
-        self.sso = LunaSingleSignOn(config.allowed_emails, config.sso, sso_transport)
+        self.sso = LunaSingleSignOn(config.allowed_emails, config.sso, sso_transport, app="vibia")
         self.backend = httpx.AsyncClient(
             event_hooks={"request": [send_user]},
             base_url=config.api_url,

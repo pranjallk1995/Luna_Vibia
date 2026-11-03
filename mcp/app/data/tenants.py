@@ -6,6 +6,7 @@ pgvector extension: no table is ever left there for a query to fall through to.
 """
 
 import logging
+import shutil
 import threading
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -97,6 +98,17 @@ class TenantSchemas:
             finally:
                 self._creating.discard(user_id)
 
+    def remove(self, user_id: str) -> None:
+        """Delete a person's schema for good; repeating this is harmless."""
+        tenancy.forbid(user_id)
+        with self._lock:
+            with self.transaction() as connection:
+                connection.execute("SELECT pg_advisory_xact_lock(%s)", (SCHEMA_LOCK,))
+                connection.execute(
+                    sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(tenancy.space_name(user_id)))
+                )
+            self._ready.discard(user_id)
+
     def users(self) -> list[str]:
         """Everyone with a schema here, the owner first."""
         prefix = tenancy.SCHEMA_PREFIX
@@ -115,6 +127,14 @@ class TenantSchemas:
                 if connection.execute(query, params).fetchone():
                     return user_id
         return None
+
+
+def remove_folder(root: Path, user_id: str) -> None:
+    """Delete a person's vault folder for good; repeating this is harmless."""
+    tenancy.forbid(user_id)
+    folder = root / tenancy.space_name(user_id)
+    if folder.exists():
+        shutil.rmtree(folder)
 
 
 def adopt_loose_files(root: Path) -> int:

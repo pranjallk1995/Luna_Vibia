@@ -12,16 +12,18 @@ import hmac
 import os
 import time
 from collections import OrderedDict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
+import anyio
 import httpx
 from mcp.server.auth.provider import AccessToken
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from pydantic import AnyHttpUrl
 from starlette.applications import Starlette
-from starlette.responses import JSONResponse
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
 
 from app.core import tenancy
 
@@ -35,12 +37,15 @@ COMPANION_ROUTES = frozenset({("POST", "/api/companion/images"), ("GET", "/api/m
 class SentiaTokenVerifier:
     """Ask Luna Sentia whose access token this is, and keep the answer briefly.
 
-    A disabled account therefore loses access within ``TOKEN_RECHECK_SECONDS``.
+    A disabled account, or an app just hidden, therefore loses access within ``TOKEN_RECHECK_SECONDS``.
     """
 
-    def __init__(self, sso_internal_url: str, resource: str, transport: httpx.AsyncBaseTransport | None = None) -> None:
+    def __init__(
+        self, sso_internal_url: str, resource: str, transport: httpx.AsyncBaseTransport | None = None, app: str = ""
+    ) -> None:
         self.url = f"{sso_internal_url.rstrip('/')}/oauth/introspect"
         self.resource = resource.rstrip("/")
+        self.app = app
         self.client = httpx.AsyncClient(timeout=INTROSPECT_TIMEOUT_SECONDS, transport=transport)
         self.known: OrderedDict[str, tuple[float, AccessToken | None]] = OrderedDict()
 
@@ -68,6 +73,9 @@ class SentiaTokenVerifier:
 
     def access_token(self, token: str, answer: dict[str, Any]) -> AccessToken | None:
         if answer.get("active") is not True or not tenancy.is_valid(answer.get("sub")):
+            return None
+        # The owner has hidden this app from this person.
+        if self.app in answer.get("hidden_apps", []):
             return None
         # A token asked for on another Luna server is not valid here.
         resource = answer.get("resource")
@@ -133,8 +141,10 @@ class LunaMCP(FastMCP):
         self,
         name: str,
         *,
+        app: str,
         public_url: str,
         api_token: str,
+        remove_user: Callable[[str], None],
         companion_token: str = "",
         open_paths: Sequence[str] = (),
         **settings: Any,
@@ -144,10 +154,11 @@ class LunaMCP(FastMCP):
             raise RuntimeError("LUNA_SSO_URL must be the public address of Luna Sentia's auth service.")
         internal = os.getenv("LUNA_SSO_INTERNAL_URL", "").strip() or "http://luna-sentia-auth:8000"
         resource = f"{public_url.rstrip('/')}/mcp"
+        self.remove_user = remove_user
         self.rest_settings = {"api_token": api_token, "companion_token": companion_token, "open_paths": open_paths}
         super().__init__(
             name,
-            token_verifier=SentiaTokenVerifier(internal, resource),
+            token_verifier=SentiaTokenVerifier(internal, resource, app=app),
             # The verifier compares resources itself, and tolerates clients that send none.
             auth=AuthSettings(
                 issuer_url=AnyHttpUrl(issuer),
@@ -156,6 +167,17 @@ class LunaMCP(FastMCP):
             ),
             **settings,
         )
+        self.custom_route("/api/users/{user_id}", methods=["DELETE"])(self.delete_user)
+
+    async def delete_user(self, request: Request) -> Response:
+        """For Luna Sentia, when the owner deletes someone: remove all they have here."""
+        if not tenancy.is_owner():
+            return JSONResponse({"error": "Only the owner deletes people."}, status_code=403)
+        user_id = request.path_params["user_id"]
+        if not tenancy.is_valid(user_id) or user_id == tenancy.OWNER:
+            return JSONResponse({"error": "That person cannot be deleted."}, status_code=400)
+        await anyio.to_thread.run_sync(self.remove_user, user_id)
+        return JSONResponse({"status": "removed"})
 
     def caller(self) -> str:
         """The signed-in person, read from this request; sessions outlive any one request."""
