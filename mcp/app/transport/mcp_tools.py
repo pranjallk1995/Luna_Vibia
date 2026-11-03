@@ -220,6 +220,24 @@ class VibiaMCPTools:
             )
 
         @server.tool()
+        async def sort_tracks(
+            order: Literal["similarity", "newest"] = "similarity", start: str | None = None
+        ) -> dict[str, Any]:
+            """Arrange the visible library so alike tracks sit together, or return it to newest first.
+
+            - similarity: orders every visible track so neighbors sound alike,
+              by the cosine similarity of their CLAP audio embeddings, so alike
+              tracks form runs. It starts from start (an exact track name) or
+              the newest track. Tracks without an embedding yet are listed and
+              shown first; backfill_metadata embeds them. The order is saved:
+              the web library, favorites, and list_tracks follow it. Tracks
+              added or restored later are slotted in next to their most similar
+              neighbors; sort again now and then to tidy the order.
+            - newest: clears the saved order.
+            """
+            return await offload(self.service.showcase.sort, order, start)
+
+        @server.tool()
         async def suggest_playlist(
             description: str,
             minutes: float = 45,

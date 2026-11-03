@@ -73,6 +73,9 @@ class TrackRepository(Repository):
         "tempo_bpm, musical_key, energy, cover_url, "
         "updated_at, hidden, favorite, public_url, track_id"
     )
+    # Unranked tracks (new uploads, or every track when no similarity order is
+    # saved) come first, newest first; then the saved similarity order.
+    LIBRARY_ORDER = "showcase_rank NULLS FIRST, updated_at DESC, name"
     # Written from a TrackRecord's facts; cover_url is kept across re-analysis.
     FACT_COLUMNS = (
         "audio_format", "duration_seconds", "sample_rate", "channels", "bitrate", "title",
@@ -129,20 +132,20 @@ class TrackRepository(Repository):
         )
 
     def list(self, hidden: bool | None = False) -> list[Row]:
-        """List visible, hidden, or all records newest first."""
+        """List visible, hidden, or all records, in the saved order or newest first."""
         return self.fetch_all(
             f"""SELECT {self.COLUMNS} FROM track_metadata
                 WHERE %s::boolean IS NULL OR hidden = %s
-                ORDER BY updated_at DESC, name""",
+                ORDER BY {self.LIBRARY_ORDER}""",
             (hidden, hidden),
         )
 
     def list_favorites(self) -> list[Row]:
-        """List visible favorite tracks newest first."""
+        """List visible favorite tracks, in the saved order or newest first."""
         return self.fetch_all(
             f"""SELECT {self.COLUMNS} FROM track_metadata
                 WHERE favorite = true AND hidden = false
-                ORDER BY updated_at DESC, name"""
+                ORDER BY {self.LIBRARY_ORDER}"""
         )
 
     def is_hidden(self, name: str) -> bool:
@@ -229,6 +232,50 @@ class TrackRepository(Repository):
         )
         return {row["name"]: [float(value) for value in row["embedding"].strip("[]").split(",")] for row in rows}
 
+    def showcase_candidates(self) -> list[Row]:
+        """Visible tracks newest first, with their embeddings (None while missing) and ranks."""
+        rows = self.fetch_all(
+            """SELECT name, embedding::text AS embedding, showcase_rank
+               FROM track_metadata WHERE hidden = false ORDER BY updated_at DESC, name"""
+        )
+        return [
+            {
+                **row,
+                "embedding": [float(value) for value in row["embedding"].strip("[]").split(",")]
+                if row["embedding"]
+                else None,
+            }
+            for row in rows
+        ]
+
+    def save_showcase_order(self, names: list[str]) -> None:
+        """Rank visible tracks in the given order; any visible track not listed becomes unranked."""
+        with self.database.connect() as connection:
+            connection.execute("UPDATE track_metadata SET showcase_rank = NULL WHERE showcase_rank IS NOT NULL")
+            connection.execute(
+                """UPDATE track_metadata AS track SET showcase_rank = ordered.rank
+                   FROM unnest(%s::text[]) WITH ORDINALITY AS ordered(name, rank)
+                   WHERE track.name = ordered.name AND track.hidden = false""",
+                (names,),
+            )
+
+    def insert_showcase_rank(self, name: str, rank: int) -> None:
+        """Give a visible track ``rank`` in the saved order, moving later tracks down one."""
+        with self.database.connect() as connection:
+            connection.execute(
+                "UPDATE track_metadata SET showcase_rank = showcase_rank + 1 WHERE showcase_rank >= %s", (rank,)
+            )
+            connection.execute(
+                "UPDATE track_metadata SET showcase_rank = %s WHERE name = %s AND hidden = false", (rank, name)
+            )
+
+    def clear_showcase_order(self) -> int:
+        """Return the library to newest first; the count of tracks that were ranked."""
+        rows = self.fetch_all(
+            "UPDATE track_metadata SET showcase_rank = NULL WHERE showcase_rank IS NOT NULL RETURNING name"
+        )
+        return len(rows)
+
     def set_cover(self, name: str, cover_url: str | None) -> Row:
         """Set or clear a visible track's cover image (a Luna Visia public URL)."""
         row = self.fetch_one(
@@ -245,7 +292,7 @@ class TrackRepository(Repository):
         if not names:
             return []
         rows = self.fetch_all(
-            """UPDATE track_metadata SET hidden = %s, updated_at = now()
+            """UPDATE track_metadata SET hidden = %s, showcase_rank = NULL, updated_at = now()
                WHERE name = ANY(%s) AND hidden <> %s RETURNING name""",
             (hidden, names, hidden),
         )

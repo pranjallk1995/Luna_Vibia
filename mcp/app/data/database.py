@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS track_metadata (
     favorite boolean NOT NULL DEFAULT false,
     public_url text
 );
+-- An optional similarity order for the visible library (NULL = newest first).
+ALTER TABLE track_metadata ADD COLUMN IF NOT EXISTS showcase_rank integer;
 CREATE UNIQUE INDEX IF NOT EXISTS track_metadata_track_id_idx ON track_metadata (track_id);
 CREATE INDEX IF NOT EXISTS track_metadata_search_idx ON track_metadata USING gin (search_vector);
 CREATE INDEX IF NOT EXISTS track_metadata_tags_idx ON track_metadata USING gin (tags);

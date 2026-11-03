@@ -360,6 +360,27 @@ class PlaceholderCoverToolTests(ServerTestCase):
         self.assertEqual(result["cover_url"], f"https://visia.example.test/api/public/images/{FakeVisia.VISIBLE_ID}")
         self.assertIn("update_track_cover", result["cover_hint"])
 
+    def test_sorted_library_groups_alike_tracks_and_places_arrivals(self) -> None:
+        for name, hertz in (("low_1.wav", 220), ("high_1.wav", 3000), ("low_2.wav", 240), ("high_2.wav", 3200)):
+            self.service.visible.ingest_bytes(name, wav_bytes(hertz))
+        result = self.call("sort_tracks", {"start": "low_1.wav"})
+        self.assertEqual((result["order"], result["start"]), ("similarity", "low_1.wav"))
+        names = [row["name"] for row in self.repository.list()]
+        wanted = {"low_1.wav", "low_2.wav", "high_1.wav", "high_2.wav"}
+        order = [name for name in names if name in wanted]
+        self.assertEqual(order[0], "low_1.wav")
+        self.assertEqual(order[1], "low_2.wav")
+
+        self.service.visible.ingest_bytes("low_3.wav", wav_bytes(230))
+        self.assertIsNotNone(self.repository.rows["low_3.wav"]["showcase_rank"])
+        self.service.hidden.set_hidden(["low_3.wav"], True)
+        self.assertIsNone(self.repository.rows["low_3.wav"]["showcase_rank"])
+        self.service.hidden.set_hidden(["low_3.wav"], False)
+        self.assertIsNotNone(self.repository.rows["low_3.wav"]["showcase_rank"])
+
+        self.assertEqual(self.call("sort_tracks", {"order": "newest"})["order"], "newest")
+        self.assertIsNone(self.repository.rows["low_1.wav"]["showcase_rank"])
+
     def test_generated_cover_is_stored_in_visia_and_set(self) -> None:
         from fakes import FakeVisia
 

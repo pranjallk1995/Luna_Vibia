@@ -185,7 +185,8 @@ later, while Docling finishes its document, then runs that call on the CPU.
 
 - `search_tracks` - rank tracks for a description ("upbeat electronic for a run"), with optional tags and length limits.
 - `suggest_playlist` - a looping playlist for a mood or moment, about `minutes` long, without near-duplicates.
-- `list_tracks` - visible tracks newest first, with captions, facts, `cover_url`, and playable `public_url`.
+- `sort_tracks` - arrange the library: `order="similarity"` saves an order where neighbors sound alike, by the cosine similarity of their CLAP embeddings, and new tracks are slotted in beside their closest match; `order="newest"` clears it.
+- `list_tracks` - visible tracks in the saved order or newest first, with captions, facts, `cover_url`, and playable `public_url`.
 - `get_track_url` - the playable public URL of one track.
 
 ### Play on the host's speakers
@@ -251,7 +252,7 @@ example after `wsl --shutdown`).
 `track_metadata` holds one row per track: name, immutable `track_id`, size and SHA-256,
 caption and tags, title, artist, generator notes, format, duration, sample rate,
 channels, bitrate, tempo, key, energy, `cover_url`, the CLAP `embedding` (pgvector, HNSW
-cosine index), a weighted full-text `search_vector`, and the hidden, favorite, and
+cosine index), an optional similarity `showcase_rank`, a weighted full-text `search_vector`, and the hidden, favorite, and
 public-URL fields. `vault_security` and `vault_config` are as in Luna Visia.
 
 ## Database UI

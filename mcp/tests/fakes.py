@@ -50,6 +50,7 @@ class FakeTrackRepository:
             "updated_at": "test",
             "hidden": previous.get("hidden", False),
             "favorite": previous.get("favorite", False),
+            "showcase_rank": previous.get("showcase_rank"),
             "track_id": track_id,
             "public_url": f"{public_base_url}{PUBLIC_TRACK_PATH}{track_id}",
         }
@@ -58,7 +59,10 @@ class FakeTrackRepository:
 
     @staticmethod
     def _public(row):
-        return {key: value for key, value in row.items() if key != "embedding"}
+        return {key: value for key, value in row.items() if key not in ("embedding", "showcase_rank")}
+
+    def _in_order(self, rows):
+        return sorted(rows, key=lambda row: (row.get("showcase_rank") is not None, row.get("showcase_rank") or 0))
 
     def get(self, name, hidden=False):
         row = self.rows.get(name)
@@ -68,11 +72,13 @@ class FakeTrackRepository:
 
     def list(self, hidden=False):
         return [
-            self._public(row) for row in self.rows.values() if hidden is None or row["hidden"] == hidden
+            self._public(row)
+            for row in self._in_order(self.rows.values())
+            if hidden is None or row["hidden"] == hidden
         ]
 
     def list_favorites(self):
-        return [self._public(row) for row in self.rows.values() if row["favorite"] and not row["hidden"]]
+        return [self._public(row) for row in self._in_order(self.rows.values()) if row["favorite"] and not row["hidden"]]
 
     def is_hidden(self, name):
         if name not in self.rows:
@@ -128,8 +134,36 @@ class FakeTrackRepository:
             if name in self.rows and not self.rows[name]["hidden"] and self.rows[name]["embedding"]
         }
 
+    def showcase_candidates(self):
+        visible = [row for row in self.rows.values() if not row["hidden"]]
+        return [
+            {"name": row["name"], "embedding": row.get("embedding"), "showcase_rank": row.get("showcase_rank")}
+            for row in reversed(visible)
+        ]
+
+    def save_showcase_order(self, names):
+        for row in self.rows.values():
+            row["showcase_rank"] = None
+        for rank, name in enumerate(names, 1):
+            self.rows[name]["showcase_rank"] = rank
+
+    def insert_showcase_rank(self, name, rank):
+        for row in self.rows.values():
+            if row.get("showcase_rank") is not None and row["showcase_rank"] >= rank:
+                row["showcase_rank"] += 1
+        self.rows[name]["showcase_rank"] = rank
+
+    def clear_showcase_order(self):
+        ranked = [row for row in self.rows.values() if row.get("showcase_rank") is not None]
+        for row in ranked:
+            row["showcase_rank"] = None
+        return len(ranked)
+
     def set_hidden(self, names, hidden):
-        return self._set_flag(names, "hidden", hidden, include_hidden=True)
+        changed = self._set_flag(names, "hidden", hidden, include_hidden=True)
+        for name in changed:
+            self.rows[name]["showcase_rank"] = None
+        return changed
 
     def set_favorite(self, names, favorite):
         return self._set_flag(names, "favorite", favorite, include_hidden=False)

@@ -19,6 +19,7 @@ from app.services.analysis_graph import TrackAnalysisGraph
 from app.services.downloads import DownloadStore, DownloadTicket
 from app.services.inspection import TrackInspector
 from app.services.media import TrackPayloadDecoder
+from app.services.showcase import ShowcaseSorter
 from app.core.models import TrackAnalysis, TrackRecord, MetadataChange, MetadataRules
 from app.data.repositories import TrackRepository, PublicURLRepository, Row
 from app.data.storage import TrackStorage
@@ -219,11 +220,14 @@ class TrackCollectionService:
         tracks: TrackRepository,
         rules: MetadataRules,
         inspector: TrackInspector,
+        showcase: ShowcaseSorter | None = None,
     ) -> None:
         self.storage = storage
         self.tracks = tracks
         self.rules = rules
         self.inspector = inspector
+        # Slots newly visible tracks into a saved similarity order, if there is one.
+        self.showcase = showcase
 
     def path(self, name: str) -> Path:
         """Return the file for a track in this collection or reject access."""
@@ -287,8 +291,9 @@ class VisibleTrackService(TrackCollectionService):
         covers: VisiaImageCatalog,
         max_fetch_tracks: int,
         max_fetch_bytes: int,
+        showcase: ShowcaseSorter | None = None,
     ) -> None:
-        super().__init__(storage, tracks, rules, inspector)
+        super().__init__(storage, tracks, rules, inspector, showcase)
         self.decoder = decoder
         self.indexer = indexer
         self.covers = covers
@@ -319,7 +324,10 @@ class VisibleTrackService(TrackCollectionService):
             given = {key: current[key] for key in ("title", "artist", "notes")}
         analysis = self.indexer.analyze(data, modified=replace, given=given)
         with self.storage.writing(path, data):
-            return self.indexer.store(name, data, analysis)
+            stored = self.indexer.store(name, data, analysis)
+        if not replace and self.showcase:
+            self.showcase.place(name)
+        return stored
 
     def upload(
         self, requested_name: str | None, data: bytes, given: dict[str, str] | None = None
@@ -790,6 +798,9 @@ class HiddenTrackService(TrackCollectionService):
         for name in clean_names:
             self.storage.existing_path(name)
         changed = self.tracks.set_hidden(clean_names, hidden)
+        if not hidden and self.showcase:
+            for name in changed:
+                self.showcase.place(name)
         return {
             "status": "hidden" if hidden else "restored",
             "names": changed,
@@ -1053,6 +1064,7 @@ class VibiaService:
         downloads: TrackDownloadService,
         uploads: UploadLinkService,
         playback: PlaybackService,
+        showcase: ShowcaseSorter,
     ) -> None:
         self.visible = visible
         self.hidden = hidden
@@ -1063,6 +1075,7 @@ class VibiaService:
         self.downloads = downloads
         self.uploads = uploads
         self.playback = playback
+        self.showcase = showcase
 
     @classmethod
     def create(
@@ -1081,6 +1094,7 @@ class VibiaService:
         urls = PublicURLService(public_urls)
         urls.seed(config.public_base_url)
         inspector = TrackInspector()
+        showcase = ShowcaseSorter(tracks)
         indexer = TrackIndexer(storage, tracks, captioner, encoder, urls, inspector, rules)
         visible = VisibleTrackService(
             storage,
@@ -1092,11 +1106,12 @@ class VibiaService:
             covers,
             config.max_fetch_tracks,
             config.max_fetch_bytes,
+            showcase,
         )
         search = SearchService(tracks, rules, encoder, config.search_limit_max)
         return cls(
             visible=visible,
-            hidden=HiddenTrackService(storage, tracks, rules, inspector),
+            hidden=HiddenTrackService(storage, tracks, rules, inspector, showcase),
             search=search,
             playlists=PlaylistService(search, tracks),
             indexer=indexer,
@@ -1116,4 +1131,5 @@ class VibiaService:
                 visible, UploadLinkStore(config.upload_ttl_seconds), urls, config.max_track_bytes
             ),
             playback=PlaybackService(visible, player or SpeakerPlayer(), config.max_play_tracks),
+            showcase=showcase,
         )
