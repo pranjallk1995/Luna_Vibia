@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 import numpy as np
 
+from app.core import tenancy
 from app.core.config import AppConfig
 from app.services.analysis_graph import TrackAnalysisGraph
 from app.services.downloads import DownloadStore, DownloadTicket
@@ -774,16 +775,17 @@ class UploadLinkService:
     def receive(self, token: str, data: bytes, file_name: str | None = None) -> dict[str, Any]:
         """Store the uploaded bytes for a claimed ticket; failed attempts can retry."""
         ticket = self.store.claim(token)
-        try:
-            if ticket.replace:
-                return {"status": "modified", **self.visible.ingest_bytes(ticket.name, data, replace=True)}
-            result = self.visible.upload(ticket.name or file_name, data)
-            if result["status"] == "created":
-                result["cover_hint"] = self.visible.COVER_HINT.format(name=result["name"])
-            return result
-        except BaseException:
-            self.store.release(ticket)
-            raise
+        with tenancy.acting_as(ticket.user):
+            try:
+                if ticket.replace:
+                    return {"status": "modified", **self.visible.ingest_bytes(ticket.name, data, replace=True)}
+                result = self.visible.upload(ticket.name or file_name, data)
+                if result["status"] == "created":
+                    result["cover_hint"] = self.visible.COVER_HINT.format(name=result["name"])
+                return result
+            except BaseException:
+                self.store.release(ticket)
+                raise
 
 
 class HiddenTrackService(TrackCollectionService):
@@ -983,6 +985,7 @@ class PlaybackService:
         raise ValueError(f"Speaker {requested!r} {problem}. Available: {options}.")
 
     def play(self, names: list[str], speaker: str | None = None, loop: bool = False) -> dict[str, Any]:
+        tenancy.require_owner("Playing on the speakers")
         if isinstance(names, list) and any(not isinstance(name, str) for name in names):
             raise ValueError("Every track name must be a string.")
         clean_names = unique_names(names, "Provide at least one track name.")
@@ -1011,6 +1014,7 @@ class PlaybackService:
 
     def switch_speaker(self, speaker: str) -> dict[str, Any]:
         """Move what plays to ``speaker``, resuming the current track where it is."""
+        tenancy.require_owner("Switching speakers")
         return self.player.switch(self.match(self.player.speakers(), speaker))
 
     # What other apps (Luna Lumia's music schemes) need to know about the playing track.

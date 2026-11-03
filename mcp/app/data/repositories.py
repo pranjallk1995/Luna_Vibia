@@ -164,6 +164,12 @@ class TrackRepository(Repository):
             (content_sha256,),
         )
 
+    def user_of_track_id(self, track_id: str) -> str | None:
+        """Who holds this track, for public links, which name no user."""
+        return self.database.tenants.user_with(
+            "SELECT 1 FROM track_metadata WHERE track_id::text = %s", (track_id,)
+        )
+
     def name_for_track_id(self, track_id: str) -> str | None:
         """Resolve an immutable public identifier to its current filename."""
         row = self.fetch_one(

@@ -8,14 +8,35 @@ at Sentia signs out of every Luna app.
 
 from __future__ import annotations
 
+import re
 import time
 from collections import OrderedDict
+from contextvars import ContextVar
 from typing import Any
 from urllib.parse import quote
 
 import httpx
 
 from config import SSOConfig
+
+
+# The signed-in person this request acts for, and the header that tells the backend.
+CURRENT_USER: ContextVar[str | None] = ContextVar("luna_user", default=None)
+USER_HEADER = "X-Luna-User"
+VALID_USER = re.compile(r"[a-z0-9]{1,32}")
+
+
+def signed_in_user() -> str:
+    """The current person's id; anything else fails rather than acting for someone else."""
+    user_id = CURRENT_USER.get()
+    if not user_id or not VALID_USER.fullmatch(user_id):
+        raise httpx.RequestError("No signed-in user for this request.")
+    return user_id
+
+
+async def send_user(request: httpx.Request) -> None:
+    """Tell the backend whose data a request is for; every backend call passes through here."""
+    request.headers[USER_HEADER] = signed_in_user()
 
 
 class LunaSingleSignOn:
@@ -37,7 +58,8 @@ class LunaSingleSignOn:
 
     def is_allowed(self, user: dict[str, Any] | None) -> bool:
         email = str((user or {}).get("email", "")).strip().casefold()
-        return bool(email and email in self.allowed_emails and (user or {}).get("email_verified") is True)
+        listed = "*" in self.allowed_emails or email in self.allowed_emails
+        return bool(email and listed and (user or {}).get("email_verified") is True)
 
     async def lookup(self, token: str) -> dict[str, Any] | None:
         """Ask Sentia who the session belongs to; None when it is unknown or expired."""

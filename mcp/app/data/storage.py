@@ -5,6 +5,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
+from app.core import tenancy
+
 
 class TrackStorage:
     """Own the track directory: safe paths and file changes that can roll back.
@@ -14,9 +16,16 @@ class TrackStorage:
     """
 
     def __init__(self, track_dir: Path, allowed_extensions: set[str]) -> None:
-        self.track_dir = track_dir
+        self.root = track_dir
         self.allowed_extensions = allowed_extensions
-        self.track_dir.mkdir(parents=True, exist_ok=True)
+        self.root.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def track_dir(self) -> Path:
+        """The current person's own folder in the vault."""
+        folder = self.root / tenancy.space_name()
+        folder.mkdir(exist_ok=True)
+        return folder
 
     def path(self, name: str) -> Path:
         """Resolve a supported plain filename without allowing path escape."""

@@ -31,10 +31,11 @@ class VibiaServiceTestCase(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.downloads_temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name) / "u_owner"
+        self.root.mkdir(parents=True)
         self.repository = FakeTrackRepository()
         self.config = AppConfig(
-            track_dir=self.root,
+            track_dir=self.root.parent,
             database_url="postgresql://test",
             ollama_url="http://ollama:11434",
             caption_model="test-caption",
@@ -232,7 +233,7 @@ class CoverTests(VibiaServiceTestCase):
         with patch("app.integrations.visia.time.sleep"), patch("app.integrations.visia.httpx.post", side_effect=answers) as post:
             self.assertEqual(catalog.store("song_cover", [], {"content_base64": "AAAA"})["public_url"], "u")
         self.assertEqual(post.call_count, 3)
-        self.assertEqual(post.call_args.kwargs["headers"], {"Authorization": f"Bearer {'t' * 32}"})
+        self.assertEqual(post.call_args.kwargs["headers"], {"Authorization": f"Bearer {'t' * 32}", "x-luna-user": "owner"})
         with patch("app.integrations.visia.httpx.post", return_value=reply(400, {"error": "not an image"})):
             with self.assertRaisesRegex(ValueError, "not an image"):
                 catalog.store("song_cover", [], {"content_base64": "AAAA"})

@@ -10,8 +10,8 @@ from starlette.testclient import TestClient
 from config import SSOConfig, UIConfig
 from gateway import UIGateway
 
-OWNER = {"email": "owner@example.com", "email_verified": True}
-STRANGER = {"email": "other@example.com", "email_verified": True}
+OWNER = {"user_id": "owner", "email": "owner@example.com", "email_verified": True}
+STRANGER = {"user_id": "stranger", "email": "other@example.com", "email_verified": True}
 TOKEN = "t" * 32
 COVER = "https://visia.example.com/api/public/images/12345678-1234-1234-1234-123456789012"
 
@@ -26,7 +26,8 @@ class GatewayTestCase(unittest.TestCase):
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        self.track_dir = Path(directory.name)
+        self.track_dir = Path(directory.name) / "u_owner"
+        self.track_dir.mkdir()
         (self.track_dir / "a.mp3").write_bytes(b"0123456789")
         (self.track_dir / "b b.wav").write_bytes(b"wav")
         self.backend_requests: list[httpx.Request] = []
@@ -49,7 +50,7 @@ class GatewayTestCase(unittest.TestCase):
             return httpx.Response(200, content=png()) if self.visia_up else httpx.Response(503)
 
         config = UIConfig(
-            track_dir=self.track_dir,
+            track_dir=self.track_dir.parent,
             api_url="http://backend",
             api_token=TOKEN,
             allowed_emails=frozenset({"owner@example.com"}),

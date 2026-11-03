@@ -5,6 +5,8 @@ from contextlib import contextmanager
 
 import psycopg
 from psycopg.rows import dict_row
+from app.core import tenancy
+from app.data.tenants import TenantSchemas, use_space
 
 # CLAP's shared music-text space; every track and search query is embedded into it.
 EMBEDDING_DIMENSIONS = 512
@@ -79,19 +81,33 @@ class Database:
 
     def __init__(self, database_url: str) -> None:
         self.database_url = database_url
+        self.tenants = TenantSchemas(self.transaction, self.create_tables)
 
     @contextmanager
-    def connect(self) -> Iterator[psycopg.Connection]:
-        """Yield one connection; its transaction commits when the block succeeds."""
+    def transaction(self) -> Iterator[psycopg.Connection]:
+        """Yield a connection to no one's data; its transaction commits when the block succeeds."""
         with psycopg.connect(self.database_url, row_factory=dict_row) as connection:
             yield connection
 
+    @contextmanager
+    def connect(self) -> Iterator[psycopg.Connection]:
+        """Yield one connection to the current person's schema, in one transaction."""
+        user_id = tenancy.current()
+        self.tenants.ensure(user_id)
+        with self.transaction() as connection:
+            use_space(connection, user_id)
+            yield connection
+
     def initialize_schema(self) -> None:
-        """Create or upgrade the idempotent Luna Vibia database schema."""
-        with psycopg.connect(self.database_url, autocommit=True) as connection:
+        """Give the owner any data from before there were users; schemas come on first use."""
+        with self.transaction() as connection:
             # pgvector is not a trusted extension: Luna Sentia's postgres-init installs it.
             if connection.execute("SELECT 1 FROM pg_extension WHERE extname = 'vector'").fetchone() is None:
                 raise RuntimeError(
                     "The pgvector extension is missing; run Luna Sentia's postgres-init to install it."
                 )
-            connection.execute(SCHEMA_SQL)
+        self.tenants.adopt_public_tables()
+
+    def create_tables(self, connection: psycopg.Connection) -> None:
+        """Create or upgrade one person's idempotent Luna Vibia schema."""
+        connection.execute(SCHEMA_SQL)

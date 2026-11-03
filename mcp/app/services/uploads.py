@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from app.core import tenancy
+
 
 class UploadLinkNotFound(LookupError):
     """Raised for an upload token that expired, was used, or never existed."""
@@ -19,6 +21,8 @@ class UploadTicket:
     name: str
     replace: bool
     expires_at: float
+    # Whose vault the upload goes to: the link itself names nobody.
+    user: str
 
     @property
     def expires_at_iso(self) -> str:
@@ -39,6 +43,7 @@ class UploadLinkStore:
             name=name,
             replace=replace,
             expires_at=time.time() + self.ttl_seconds,
+            user=tenancy.current(),
         )
         with self._lock:
             self._purge_expired()

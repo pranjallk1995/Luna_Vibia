@@ -8,6 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
+from app.core import tenancy
 from app.transport.branding import ServerBranding
 from app.transport.auth import APIAuthenticator
 from app.core.models import MetadataChange
@@ -146,7 +147,10 @@ class VibiaHTTPRoutes:
             return {"tracks": visible.list()}
 
         async def public_track(request: Request):
-            path = visible.public_path(self.name(request))
+            identifier = self.name(request)
+            # An unknown identifier may be a filename from an old link: only the owner's work.
+            with tenancy.acting_as(visible.tracks.user_of_track_id(identifier) or tenancy.OWNER):
+                path = visible.public_path(identifier)
             return FileResponse(
                 path,
                 media_type=AUDIO_TYPES.get(path.suffix.lower(), "application/octet-stream"),
