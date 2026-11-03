@@ -95,6 +95,9 @@ class FakeTrackRepository:
             None,
         )
 
+    def user_of_track_id(self, identifier):
+        return None
+
     def name_for_track_id(self, track_id):
         return next(
             (name for name, row in self.rows.items() if row["track_id"] == track_id), None

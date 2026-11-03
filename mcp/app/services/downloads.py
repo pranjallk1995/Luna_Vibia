@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app.core import tenancy
 from app.services.media import TrackArchive
 from app.core.config import AppConfig
 
@@ -21,6 +22,8 @@ class DownloadTicket:
     track_count: int
     size_bytes: int
     expires_at: float
+    # Whose archive this is, so deleting a person deletes it too.
+    user: str = ""
 
     @property
     def expires_at_iso(self) -> str:
@@ -68,6 +71,7 @@ class DownloadStore:
                 track_count=len(paths),
                 size_bytes=archive.stat().st_size,
                 expires_at=time.time() + self.ttl_seconds,
+                user=tenancy.current(),
             )
             sidecar = self._ticket_path(token).with_suffix(".json.part")
             sidecar.write_text(json.dumps(asdict(ticket)))
@@ -95,6 +99,13 @@ class DownloadStore:
     def _remove(self, token: str) -> None:
         self._ticket_path(token).unlink(missing_ok=True)
         self.archive_path(token).unlink(missing_ok=True)
+
+    def remove_user(self, user_id: str) -> None:
+        """Delete every archive this person made."""
+        for sidecar in self.directory.glob("*.json"):
+            ticket = self._load(sidecar.stem)
+            if ticket is not None and ticket.user == user_id:
+                self._remove(ticket.token)
 
     def purge(self, keep: str | None = None) -> None:
         """Drop expired or incomplete archives, then evict the oldest over the cap."""

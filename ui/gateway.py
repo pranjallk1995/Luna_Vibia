@@ -23,7 +23,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from config import SSOConfig, UIConfig
-from sso import LunaSingleSignOn
+from sso import CURRENT_USER, LunaSingleSignOn, send_user, signed_in_user
 from tracks import TrackFiles
 
 NAME = r"[^/]+"
@@ -64,9 +64,10 @@ class UIGateway:
         visia_transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self.config = config
-        self.files = TrackFiles(config.track_dir)
-        self.sso = LunaSingleSignOn(config.allowed_emails, config.sso, sso_transport)
+        self.vaults: dict[str, TrackFiles] = {}
+        self.sso = LunaSingleSignOn(config.allowed_emails, config.sso, sso_transport, app="vibia")
         self.backend = httpx.AsyncClient(
+            event_hooks={"request": [send_user]},
             base_url=config.api_url,
             headers={"Authorization": f"Bearer {config.api_token}"},
             timeout=UIConfig.API_TIMEOUT_SECONDS,
@@ -75,6 +76,14 @@ class UIGateway:
         self.visia = httpx.AsyncClient(
             base_url=config.visia_api_url, timeout=UIConfig.COVER_TIMEOUT_SECONDS, transport=visia_transport
         )
+
+    @property
+    def files(self) -> TrackFiles:
+        """The signed-in person's own vault folder, with caches of its own."""
+        user_id = signed_in_user()
+        if user_id not in self.vaults:
+            self.vaults[user_id] = TrackFiles(self.config.track_dir / f"u_{user_id}")
+        return self.vaults[user_id]
 
     # Sign-in
 
@@ -99,7 +108,11 @@ class UIGateway:
                 return JSONResponse({"error": "Sign in to continue."}, status_code=401)
             if not self.sso.is_allowed(user):
                 return JSONResponse({"error": "This account is not authorized."}, status_code=403)
-            return await handler(request)
+            token = CURRENT_USER.set(user.get("user_id"))
+            try:
+                return await handler(request)
+            finally:
+                CURRENT_USER.reset(token)
 
         return endpoint
 

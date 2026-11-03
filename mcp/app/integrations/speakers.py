@@ -16,6 +16,8 @@ from app.core.config import AppConfig
 
 Row = dict[str, Any]
 
+from app.core import tenancy
+
 
 class SpeakerUnavailableError(RuntimeError):
     """Raised when the host's sound server cannot be reached."""
@@ -325,3 +327,41 @@ class SpeakerPlayer:
                 f"{chosen['name']!r}."
             )
         return status
+
+
+class OwnerSpeakers:
+    """The host's speakers, which are in the owner's home: nobody else plays on them or sees what plays."""
+
+    IDLE: Row = {"status": "idle", "now_playing": None, "tracks": [], "loop": False}
+
+    def __init__(self, player: SpeakerPlayer) -> None:
+        self.player = player
+
+    def speakers(self) -> list[Speaker]:
+        return self.player.speakers() if tenancy.is_owner() else []
+
+    def status(self) -> Row:
+        return self.player.status() if tenancy.is_owner() else dict(self.IDLE)
+
+    def live_status(self) -> Row:
+        return self.player.live_status() if tenancy.is_owner() else dict(self.IDLE)
+
+    def play(self, queue: list[tuple[str, Path]], speaker: Speaker, loop: bool) -> Row:
+        tenancy.require_owner("Playing on the speakers")
+        return self.player.play(queue, speaker, loop)
+
+    def switch(self, speaker: Speaker) -> Row:
+        tenancy.require_owner("Switching speakers")
+        return self.player.switch(speaker)
+
+    def stop(self) -> Row:
+        tenancy.require_owner("Stopping the speakers")
+        return self.player.stop()
+
+    def volume(self) -> Row:
+        tenancy.require_owner("The speaker volume")
+        return self.player.volume()
+
+    def set_volume(self, percent: int | None = None, change: int | None = None, muted: bool | None = None) -> Row:
+        tenancy.require_owner("The speaker volume")
+        return self.player.set_volume(percent, change, muted)
