@@ -201,6 +201,10 @@ later, while Docling finishes its document, then runs that call on the CPU.
 
 ## MCP tools
 
+### Web UI
+
+- `get_ui_link` - the link to open this app's web UI, to give the user; they sign in with their Luna account.
+
 ### Find and play
 
 - `search_tracks` - rank tracks for a description ("upbeat electronic for a run"), with optional tags and length limits.

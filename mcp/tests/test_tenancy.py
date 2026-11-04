@@ -5,6 +5,7 @@ import contextvars
 import os
 import threading
 import unittest
+from unittest import mock
 
 import httpx
 from starlette.applications import Starlette
@@ -103,6 +104,20 @@ class DeletedPersonTests(WithoutTestUser):
             tenancy.forbid(tenancy.OWNER)
         with self.assertRaises(ValueError):
             tenancy.forbid("../x")
+
+
+class UILinkTests(unittest.TestCase):
+    def link(self, address: str):
+        with mock.patch.dict(os.environ, {"LUNA_SSO_URL": "https://auth.example", "UI_PUBLIC_URL": address}):
+            server = LunaMCP("Test", app="test", public_url="https://app.example", api_token=TOKEN, remove_user=print)
+        return server._tool_manager.get_tool("get_ui_link").fn
+
+    def test_the_tool_gives_the_public_address(self) -> None:
+        self.assertEqual(self.link("https://app.example/ ")(), {"app": "Test", "url": "https://app.example"})
+
+    def test_an_unset_address_is_said_plainly(self) -> None:
+        with self.assertRaisesRegex(ValueError, "UI_PUBLIC_URL"):
+            self.link("")()
 
 
 class DeleteRouteTests(WithoutTestUser):

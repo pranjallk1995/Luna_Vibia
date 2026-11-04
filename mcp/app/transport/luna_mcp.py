@@ -168,6 +168,18 @@ class LunaMCP(FastMCP):
             **settings,
         )
         self.custom_route("/api/users/{user_id}", methods=["DELETE"])(self.delete_user)
+        self.ui_url = os.getenv("UI_PUBLIC_URL", "").strip().rstrip("/")
+        self.tool()(self.get_ui_link)
+
+    def get_ui_link(self) -> dict[str, str]:
+        """Return the link to this app's web UI.
+
+        Give it to the user when they ask where to see or manage this app's data, or when
+        something is easier to do on the page. They sign in there with their Luna account.
+        """
+        if not self.ui_url:
+            raise ValueError("This app's web address is not set; set UI_PUBLIC_URL and restart it.")
+        return {"app": self.name, "url": self.ui_url}
 
     async def delete_user(self, request: Request) -> Response:
         """For Luna Sentia, when the owner deletes someone: remove all they have here."""
