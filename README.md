@@ -29,6 +29,20 @@ Cover art comes from Luna Visia.
   <img src="docs/showcase.png" alt="Luna Vibia library playing a looped sleep playlist on an Echo Dot, started from a chat assistant">
 </p>
 
+## Users and separate storage
+
+Each person signs in with Google and has their own space in Luna Vibia: the schema `u_<id>` in the `lunavibia` database, and the folder `u_<id>` in the `luna_vibia_track_data` volume. It is created the first time they use the app. The owner adds, disables, and deletes people at Luna Sentia's `/admin`, and can hide this app from everyone else there; see [Users and separate storage](https://github.com/pranjallk1995/Luna_Sentia#users-and-separate-storage).
+
+### Connecting an MCP client
+
+Add `https://<your vibia MCP host>/mcp` to your client, such as Claude or ChatGPT, as a custom connector using OAuth. The client signs you in with Google and shows an approval page; check the return address, then allow it. Its tools then act only on your data. A request without a valid token gets 401.
+
+### The speakers belong to the owner
+
+Only the owner can play on the host's speakers or change their volume, and nobody else can see what is playing. Everyone else has their own library, and their covers are stored in their own Luna Visia gallery. If the speakers are all you use it for, consider hiding Vibia from everyone else.
+
+In the code, `mcp/app/core/tenancy.py` holds who the current request or job acts for, `mcp/app/data/tenants.py` creates and removes each person's schema, and `mcp/app/transport/luna_mcp.py` checks connector tokens and the private token on `/api/` routes. Code that does not say who it acts for raises `NoUserError` rather than reading anyone's data.
+
 ## Architecture
 
 ### Luna ecosystem
@@ -134,7 +148,7 @@ CLAP_DEVICE=auto
 LUNAVISIA_API_URL=http://luna-visia-mcp:8000
 LUNAVIBIA_PUBLIC_BASE_URL=https://vibia.example.com
 LUNAVIBIA_API_TOKEN=replace-with-a-random-value-of-at-least-32-characters
-LUNAVIBIA_ALLOWED_EMAILS=you@example.com
+LUNAVIBIA_ALLOWED_EMAILS=*
 MCP_PUBLIC_URL=https://vibia-mcp.example.com
 PULSE_SOCKET=/mnt/wslg/PulseServer
 LUNAVIBIA_SPEAKER_HELPER_URL=http://host.docker.internal:18007
@@ -156,7 +170,7 @@ docker compose up -d
 
 - UI: <http://127.0.0.1:18506>
 - Service health: <http://127.0.0.1:18005/health>
-- MCP endpoint: <http://127.0.0.1:18005/mcp>
+- MCP endpoint: <http://127.0.0.1:18005/mcp> (clients sign in; see Connecting an MCP client)
 
 ### GPU listening (optional)
 
