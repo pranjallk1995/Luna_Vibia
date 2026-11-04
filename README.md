@@ -57,7 +57,8 @@ In the code, `mcp/app/core/tenancy.py` holds who the current request or job acts
 
 Every Luna app is a React UI plus a FastMCP service on Luna Sentia's
 `luna_sentia_network`: its data lives in Sentia's PostgreSQL, people sign in
-through Sentia's `auth`, and model calls go to Sentia's Ollama. Orange lines are
+through Sentia's `auth`, and model calls go to Sentia's Ollama. Visia's SigLIP 2 image
+embeddings and Vibia's CLAP music embeddings run inside those apps instead. Orange lines are
 Visia image URLs that other apps use: food images for Vita, room images for
 Lumia, and cover art for Vibia. Grey dashed lines are planned: links into Fiora
 (tax details from Lexia, transaction image and icon URLs from Visia). Luna Unia
