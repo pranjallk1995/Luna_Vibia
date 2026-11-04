@@ -9,6 +9,12 @@
 ![NVIDIA GPU optional](https://img.shields.io/badge/NVIDIA_GPU-optional-76B900?logo=nvidia&logoColor=white)
 ![Status: early](https://img.shields.io/badge/Status-early-D29922)
 
+<p align="center">
+  <a href="docs/assets/luna-vibia-showcase.mp4"><img src="docs/assets/luna-vibia-showcase.webp" alt="From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia" width="900"></a>
+</p>
+
+<p align="center"><em>From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia. Select it for the sharper video.</em></p>
+
 ## Store, describe, and find music with LLMs
 
 > **Work in progress:** Luna Vibia is a local-first music library under active development. It
@@ -194,6 +200,10 @@ document. If a CLAP call still finds the GPU full, it tries twice more, 1 s and 
 later, while Docling finishes its document, then runs that call on the CPU.
 
 ## MCP tools
+
+### Web UI
+
+- `get_ui_link` - the link to open this app's web UI, to give the user; they sign in with their Luna account.
 
 ### Find and play
 
