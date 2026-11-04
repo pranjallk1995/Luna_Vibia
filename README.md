@@ -10,10 +10,10 @@
 ![Status: early](https://img.shields.io/badge/Status-early-D29922)
 
 <p align="center">
-  <a href="docs/assets/luna-vibia-showcase.mp4"><img src="docs/assets/luna-vibia-showcase.webp" alt="From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia" width="900"></a>
+  <a href="docs/assets/luna-vibia-showcase.mp4"><img src="docs/assets/luna-vibia-showcase.webp" alt="From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia, then asking a chat assistant for a playlist through its MCP tools" width="900"></a>
 </p>
 
-<p align="center"><em>From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia. Select it for the sharper video.</em></p>
+<p align="center"><em>From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia, then asking a chat assistant for a playlist through its MCP tools. Select it for the sharper video.</em></p>
 
 ## Store, describe, and find music with LLMs
 
