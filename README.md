@@ -7,7 +7,7 @@
 ![PostgreSQL in Luna Sentia](https://img.shields.io/badge/PostgreSQL-in_Luna_Sentia-4169E1?logo=postgresql&logoColor=white)
 ![CLAP included](https://img.shields.io/badge/CLAP-included-FFD21E?logo=huggingface&logoColor=black)
 ![NVIDIA GPU optional](https://img.shields.io/badge/NVIDIA_GPU-optional-76B900?logo=nvidia&logoColor=white)
-![Status: v1.0](https://img.shields.io/badge/Status-v1.0-2EA043)
+![Status: v1.1](https://img.shields.io/badge/Status-v1.1-2EA043)
 
 <p align="center">
   <a href="docs/assets/luna-vibia-showcase.mp4"><img src="docs/assets/luna-vibia-showcase.webp" alt="From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia, then asking a chat assistant for a playlist through its MCP tools" width="900"></a>
