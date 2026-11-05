@@ -4,7 +4,8 @@ The container cannot reach Windows, so this small service lists Windows'
 connected Bluetooth speakers and makes one the default output through
 PowerShell (windows_audio.ps1). WSLg's audio follows Windows' default output,
 so Vibia, playing through WSLg, is then heard on that speaker. It also reads
-and sets that output's volume, which a Bluetooth speaker follows.
+and sets that output's volume, which a Bluetooth speaker follows, and runs
+repair_audio.sh, which has to run out here because it replaces the MCP container.
 
 Standard library only. Requests need ``Authorization: Bearer <LUNAVIBIA_API_TOKEN>``.
 """
@@ -16,6 +17,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -23,6 +25,9 @@ from pathlib import Path
 from typing import Any
 
 SCRIPT = Path(__file__).resolve().with_name("windows_audio.ps1")
+REPAIR_SCRIPT = Path(__file__).resolve().with_name("repair_audio.sh")
+REPAIR_TIMEOUT_SECONDS = 240
+REPAIR_LOG_LINES = 40
 POWERSHELL = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 POWERSHELL_TIMEOUT_SECONDS = 60
 # A speaker can only be selected by an ID a recent listing returned.
@@ -149,8 +154,40 @@ class WindowsSpeakers:
         }
 
 
+class AudioRepair:
+    """Runs repair_audio.sh, one run at a time, and remembers how the last run went."""
+
+    def __init__(self, script: Path = REPAIR_SCRIPT) -> None:
+        self.script = script
+        self._lock = threading.Lock()
+        self._process: subprocess.Popen[bytes] | None = None
+        self._log: Any = None
+
+    def start(self) -> dict[str, Any]:
+        with self._lock:
+            if self._process is None or self._process.poll() is not None:
+                if self._log is not None:
+                    self._log.close()
+                self._log = tempfile.TemporaryFile()
+                self._process = subprocess.Popen(
+                    ["timeout", str(REPAIR_TIMEOUT_SECONDS), str(self.script)],
+                    stdin=subprocess.DEVNULL, stdout=self._log, stderr=subprocess.STDOUT,
+                )
+        return self.status()
+
+    def status(self) -> dict[str, Any]:
+        with self._lock:
+            if self._process is None:
+                return {"state": "not_run", "log": []}
+            code = self._process.poll()
+            lines = Path(f"/proc/self/fd/{self._log.fileno()}").read_text(errors="replace").splitlines()
+        state = "running" if code is None else "finished" if code == 0 else "failed"
+        return {"state": state, "log": lines[-REPAIR_LOG_LINES:]}
+
+
 class SpeakerHandler(BaseHTTPRequestHandler):
     speakers: WindowsSpeakers
+    repair: AudioRepair
     token: str
 
     def _send(self, status: int, body: Any) -> None:
@@ -190,6 +227,9 @@ class SpeakerHandler(BaseHTTPRequestHandler):
         elif self.path == "/speakers/volume":
             if self._authorized():
                 self._handle(self.speakers.volume)
+        elif self.path == "/audio/repair":
+            if self._authorized():
+                self._handle(self.repair.status)
         else:
             self._send(404, {"detail": "Not found."})
 
@@ -205,10 +245,13 @@ class SpeakerHandler(BaseHTTPRequestHandler):
         return body
 
     def do_POST(self) -> None:
-        if self.path not in ("/speakers/default", "/speakers/volume"):
+        if self.path not in ("/speakers/default", "/speakers/volume", "/audio/repair"):
             self._send(404, {"detail": "Not found."})
             return
         if not self._authorized():
+            return
+        if self.path == "/audio/repair":
+            self._handle(self.repair.start)
             return
         body = self._body()
         if body is None:
@@ -229,6 +272,7 @@ def main() -> None:
     host = os.environ.get("LUNAVIBIA_SPEAKER_HELPER_HOST", "0.0.0.0")
     port = int(os.environ.get("LUNAVIBIA_SPEAKER_HELPER_PORT", "18007"))
     SpeakerHandler.speakers = WindowsSpeakers()
+    SpeakerHandler.repair = AudioRepair()
     SpeakerHandler.token = token
     print(f"Luna Vibia speaker helper listening on {host}:{port}", flush=True)
     ThreadingHTTPServer((host, port), SpeakerHandler).serve_forever()

@@ -436,8 +436,33 @@ class VibiaMCPTools:
             the host: the output can change after playback starts (for example
             when another Bluetooth speaker connects), and then requested_speaker
             and note say so. Always tell the user the speaker reported here.
+
+            If a track failed with "Nothing was written into output file", call
+            repair_audio.
             """
             return await offload(playback.status)
+
+        @server.tool()
+        async def repair_audio() -> dict[str, Any]:
+            """Repair playback when Vibia cannot reach the host's sound server.
+
+            Use it when playback fails with "Nothing was written into output file"
+            or a sound server error. It changes nothing if audio already works.
+            Otherwise it restarts WSLg's sound server and replaces Vibia's MCP
+            container, so Vibia may not answer for up to a minute and anything
+            playing stops. It only starts the repair: follow it with
+            get_audio_repair_status, retrying if Vibia is briefly unreachable.
+            """
+            return await offload(playback.player.repair_audio)
+
+        @server.tool()
+        async def get_audio_repair_status() -> dict[str, Any]:
+            """How the last repair_audio went: state and log.
+
+            state is not_run, running, finished (audio works), or failed. When it
+            failed, the log says what to do next; tell the user.
+            """
+            return await offload(playback.player.audio_repair_status)
 
     def _register_mutation_tools(self) -> None:
         server, visible, sources, uploads = (

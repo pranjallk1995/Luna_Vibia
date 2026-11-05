@@ -29,12 +29,15 @@ class OwnerSpeakerTests(unittest.TestCase):
                 self.speakers.stop,
                 self.speakers.volume,
                 lambda: self.speakers.set_volume(50),
+                self.speakers.repair_audio,
+                self.speakers.audio_repair_status,
             ):
                 with self.assertRaises(PermissionError):
                     call()
         self.player.play.assert_not_called()
         self.player.stop.assert_not_called()
         self.player.set_volume.assert_not_called()
+        self.player.repair_audio.assert_not_called()
 
     def test_the_owner_uses_them_as_before(self) -> None:
         with tenancy.acting_as(tenancy.OWNER):

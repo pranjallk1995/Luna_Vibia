@@ -94,6 +94,13 @@ class WindowsSpeakerHelper:
         body = {key: value for key, value in (("percent", percent), ("change", change), ("muted", muted)) if value is not None}
         return self._request("POST", "/speakers/volume", json=body, timeout=AppConfig.SPEAKER_OUTPUT_TIMEOUT_SECONDS)
 
+    def repair_audio(self) -> Row:
+        """Start host/repair_audio.sh on the host, which may replace this container."""
+        return self._request("POST", "/audio/repair", timeout=AppConfig.SPEAKER_OUTPUT_TIMEOUT_SECONDS)
+
+    def audio_repair_status(self) -> Row:
+        return self._request("GET", "/audio/repair", timeout=AppConfig.SPEAKER_OUTPUT_TIMEOUT_SECONDS)
+
 
 class SpeakerPlayer:
     """List the host's audio outputs and play a queue of files on one of them.
@@ -294,6 +301,21 @@ class SpeakerPlayer:
             raise SpeakerUnavailableError(self.VOLUME_UNSUPPORTED)
         return self.windows.set_volume(percent, change, muted)
 
+    REPAIR_UNSUPPORTED = (
+        "Repairing audio needs the Windows speaker helper (LUNAVIBIA_SPEAKER_HELPER_URL), "
+        "as it fixes WSLg's sound server from the WSL host."
+    )
+
+    def repair_audio(self) -> Row:
+        if self.windows is None:
+            raise SpeakerUnavailableError(self.REPAIR_UNSUPPORTED)
+        return self.windows.repair_audio()
+
+    def audio_repair_status(self) -> Row:
+        if self.windows is None:
+            raise SpeakerUnavailableError(self.REPAIR_UNSUPPORTED)
+        return self.windows.audio_repair_status()
+
     def output(self, playing_on: Row | None = None) -> Row | None:
         """Where sound goes now: Windows' live default, else the playing (or default) sink."""
         if self.windows is not None:
@@ -365,3 +387,11 @@ class OwnerSpeakers:
     def set_volume(self, percent: int | None = None, change: int | None = None, muted: bool | None = None) -> Row:
         tenancy.require_owner("The speaker volume")
         return self.player.set_volume(percent, change, muted)
+
+    def repair_audio(self) -> Row:
+        tenancy.require_owner("Repairing the speakers")
+        return self.player.repair_audio()
+
+    def audio_repair_status(self) -> Row:
+        tenancy.require_owner("Repairing the speakers")
+        return self.player.audio_repair_status()

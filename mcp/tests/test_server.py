@@ -923,6 +923,21 @@ class PlaybackToolTests(ServerTestCase):
         with self.assertRaisesRegex(ToolError, "Windows speaker helper"):
             self.call("get_volume", {})
 
+    def test_repair_audio_needs_the_helper_and_only_starts_it(self) -> None:
+        class FakeWindows:
+            def repair_audio(self):
+                return {"state": "running", "log": []}
+
+            def audio_repair_status(self):
+                return {"state": "finished", "log": ["Audio works"]}
+
+        self.service.playback.player = SpeakerPlayer(FakeWindows())
+        self.assertEqual(self.call("repair_audio", {})["state"], "running")
+        self.assertEqual(self.call("get_audio_repair_status", {})["state"], "finished")
+        self.service.playback.player = SpeakerPlayer()
+        with self.assertRaisesRegex(ToolError, "Windows speaker helper"):
+            self.call("repair_audio", {})
+
     def test_windows_helper_sends_volume_changes(self) -> None:
         helper = WindowsSpeakerHelper("http://helper", "token")
 

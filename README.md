@@ -220,6 +220,7 @@ later, while Docling finishes its document, then runs that call on the CPU.
 - `list_speakers` - the connected speakers (under WSL, Windows' Bluetooth speakers), with the current output marked.
 - `switch_speaker` - move what is playing to another speaker; the current track resumes there at the second it had reached. `play_tracks` with the same queue does the same instead of restarting.
 - `get_volume`, `change_volume`, `set_volume` - the volume (0-100) of the speaker the host plays on now: read it, turn it up or down (`by`, e.g. 10 or -10), or set it and mute or unmute it. Under WSL this is Windows' volume for that output, which a Bluetooth speaker follows, so everything playing on it changes.
+- `repair_audio` / `get_audio_repair_status` - get playback working again when it fails with "Nothing was written into output file": the first starts `host/repair_audio.sh` on the host through the speaker helper, the second reports how it went. Owner only; needs the speaker helper.
 - `get_playback_status` / `stop_playback` - what is playing (with `position_seconds` into the current track, and `track`: its caption, tags, tempo, and key), and stop it.
 
 [Luna Lumia](https://github.com/pranjallk1995/Luna_Lumia) reads the same status from `GET /api/playback?output=0`
@@ -253,6 +254,13 @@ The container reaches it at `LUNAVIBIA_SPEAKER_HELPER_URL`
 (`http://host.docker.internal:18007`). Listing takes about 5 seconds, as PowerShell
 reads Windows' devices. Restart Vibia after the host's sound server restarts (for
 example after `wsl --shutdown`).
+
+If Docker starts Vibia at boot before WSLg has made its socket, Docker creates a directory
+at `/mnt/wslg/PulseServer`, and playback then fails with "Nothing was written into output
+file". Ask the assistant to repair it (`repair_audio`), or run `host/repair_audio.sh` in WSL,
+not PowerShell. It removes that directory if it is empty, restarts WSLg's sound server, and
+recreates the MCP container, and it does nothing when audio already works. Add `--check` to
+only report. After changing `host/`, run `systemctl --user restart luna-vibia-speakers`.
 
 ### Add and change
 
