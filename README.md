@@ -35,6 +35,17 @@ Cover art comes from Luna Visia.
   <img src="docs/showcase.png" alt="Luna Vibia library playing a looped sleep playlist on an Echo Dot, started from a chat assistant">
 </p>
 
+## The model outside Ollama
+
+Besides the models it calls through Ollama, Luna Vibia runs one of its own, inside its
+backend: CLAP (`laion/clap-htsat-unfused`), which hears each track and turns it, and every search, into an embedding, with mood hints for the caption model. It runs on the GPU when there is one, with a CPU copy as a last resort.
+
+Its calls never pass through [Luna Sentia's model monitor](https://github.com/pranjallk1995/Luna_Sentia#model-monitor), so the app counts them itself: whether the model is
+loaded and on which device, its calls, failures, and busy time since the app started,
+and the GPU memory this process holds (from torch, since WSL cannot split VRAM by
+process). `GET /api/models` reports them, for the owner only, and the monitor's **Inside
+the apps** card asks every ten seconds.
+
 ## Users and separate storage
 
 Each person signs in with Google and has their own space in Luna Vibia: the schema `u_<id>` in the `lunavibia` database, and the folder `u_<id>` in the `luna_vibia_track_data` volume. It is created the first time they use the app. The owner adds, disables, and deletes people at Luna Sentia's `/admin`, and can hide this app from everyone else there; see [Users and separate storage](https://github.com/pranjallk1995/Luna_Sentia#users-and-separate-storage).

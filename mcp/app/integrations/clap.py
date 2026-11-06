@@ -9,6 +9,7 @@ import time
 import numpy as np
 
 from app.core.config import AppConfig
+from app.integrations.model_usage import ModelUsage
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,12 @@ class ClapEncoder:
         self._processor = None
         self._lock = threading.Lock()
         self._vocabulary: dict[str, tuple[tuple[str, ...], np.ndarray]] | None = None
+        self.usage = ModelUsage(model_name, "Hears each track: audio and text embeddings, and mood hints", self._state)
+
+    def _state(self) -> tuple[bool, str]:
+        if self._model is None:
+            return False, "loads on first use"
+        return True, self.device + (" (and a CPU copy)" if self._cpu_model is not None else "")
 
     def _load(self):
         with self._lock:
@@ -86,6 +93,10 @@ class ClapEncoder:
 
     def _run(self, method: str, inputs) -> np.ndarray:
         """Call ``method`` of the model on ``inputs``, on its device, with the CPU as a last resort."""
+        with self.usage.record():
+            return self._run_on_device(method, inputs)
+
+    def _run_on_device(self, method: str, inputs) -> np.ndarray:
         import torch
 
         model, _ = self._load()

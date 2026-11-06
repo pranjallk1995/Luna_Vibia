@@ -9,6 +9,7 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
 from app.core import tenancy
+from app.integrations import model_usage
 from app.transport.branding import ServerBranding
 from app.transport.auth import APIAuthenticator
 from app.core.models import MetadataChange
@@ -127,6 +128,7 @@ class VibiaHTTPRoutes:
 
     def _register(self) -> None:
         self.route("GET", "/health", self.health)
+        self.route("GET", "/api/models", self.models)
         self._register_icons()
         self._register_tracks()
         self._register_favorites()
@@ -138,6 +140,14 @@ class VibiaHTTPRoutes:
 
     async def health(self, request: Request) -> dict:
         return {"status": "ok", "service": "luna-vibia"}
+
+    async def models(self, request: Request) -> dict:
+        """For Luna Sentia's model monitor: the models this app runs itself, outside Ollama.
+
+        They run on the home's GPU, so only the owner sees them.
+        """
+        tenancy.require_owner("Seeing the app's own models")
+        return model_usage.report("vibia")
 
     def _register_icons(self) -> None:
         branding = self.branding
