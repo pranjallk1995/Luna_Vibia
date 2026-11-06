@@ -1,10 +1,11 @@
 """Resolve chat-supplied track sources into track bytes."""
 
 import ipaddress
+import re
 import socket
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import httpx
 
@@ -33,6 +34,27 @@ class TrackSourceResolver:
         "attachment's file reference or a public HTTPS URL, or call "
         "create_upload_link and send the file's bytes to the returned URL."
     )
+    # Models copy links by retyping them, and long signed links can come out garbled.
+    DAMAGED_LINK_MESSAGE = (
+        "This audio link was damaged when it was copied: its signature is malformed, so "
+        "its host would refuse it. Nothing was saved. Do not generate the music again: "
+        "copy the full link again, character by character, from the music tool's result "
+        "and retry. If it fails again, ask the user to attach the audio file to the chat."
+    )
+    REFUSED_LINK_MESSAGE = (
+        "The host refused this audio link (HTTP {status}). Nothing was saved. The link "
+        "was either damaged when it was copied or has expired. Copy the full link again, "
+        "character by character, from the music tool's result and retry once. If it is "
+        "refused again, tell the user: they can attach the audio file to the chat, or you "
+        "can generate the music again if the link has expired."
+    )
+    UNREACHABLE_LINK_MESSAGE = (
+        "The audio link could not be downloaded right now ({reason}). Nothing was saved. "
+        "Retry with the same link."
+    )
+    REFUSED_STATUSES = frozenset({401, 403, 404, 410})
+    # A Google Storage V4 signature is the hex of an RSA signature: 2048-bit or 4096-bit keys.
+    GOOGLE_RSA_SIGNATURE = re.compile(r"[0-9a-f]{512}|[0-9a-f]{1024}", re.IGNORECASE)
 
     def __init__(self, decoder: TrackPayloadDecoder, max_bytes: int, max_redirects: int) -> None:
         self.decoder = decoder
@@ -72,8 +94,28 @@ class TrackSourceResolver:
             return TrackSource(self.decoder.decode_base64(url))
         if url.casefold().startswith(self.LOCAL_PATH_PREFIXES):
             raise ValueError(self.LOCAL_PATH_MESSAGE)
-        data, final_url = self._download(url)
+        self._reject_damaged_signature(url)
+        # These errors are rebuilt without the link, which they would otherwise quote.
+        try:
+            data, final_url = self._download(url)
+        except httpx.HTTPStatusError as error:
+            status = error.response.status_code
+            if status in self.REFUSED_STATUSES:
+                raise ValueError(self.REFUSED_LINK_MESSAGE.format(status=status)) from None
+            raise ValueError(self.UNREACHABLE_LINK_MESSAGE.format(reason=f"HTTP {status}")) from None
+        except httpx.HTTPError as error:
+            raise ValueError(self.UNREACHABLE_LINK_MESSAGE.format(reason=type(error).__name__)) from None
         return TrackSource(data, unquote(urlparse(final_url).path.rsplit("/", 1)[-1]) or None)
+
+    @classmethod
+    def _reject_damaged_signature(cls, url: str) -> None:
+        """Catch a garbled Google Storage signed link before asking its host for it."""
+        query = parse_qs(urlparse(url).query)
+        if "GOOG4-RSA-SHA256" not in query.get("X-Goog-Algorithm", []):
+            return
+        signature = query.get("X-Goog-Signature", [""])[0]
+        if not cls.GOOGLE_RSA_SIGNATURE.fullmatch(signature):
+            raise ValueError(cls.DAMAGED_LINK_MESSAGE)
 
     @staticmethod
     def validate_public_https_url(url: str) -> None:

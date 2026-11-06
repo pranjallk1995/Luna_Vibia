@@ -368,7 +368,8 @@ class VisibleTrackService(TrackCollectionService):
         (file or content_base64). New art is stored in Visia after the track is
         saved: if that fails, the track keeps the placeholder and the result's
         cover_error says to retry with update_track_cover. A duplicate keeps its
-        cover, unless it only has the placeholder and new art was given.
+        cover, unless it only has the placeholder: then new art is applied, and
+        without any the result asks for it, as it does for a new track.
         """
         art = {field: value for field, value in (cover_art or {}).items() if value not in (None, "")}
         url = (cover_url or "").strip()
@@ -382,7 +383,8 @@ class VisibleTrackService(TrackCollectionService):
         created = result["status"] == "created"
         if created and cover:
             result["cover_url"] = self.tracks.set_cover(result["name"], cover)["cover_url"]
-        if art and (created or result.get("cover_url") in (None, self.cover_or_placeholder(None))):
+        needs_art = created or result.get("cover_url") in (None, self.cover_or_placeholder(None))
+        if art and needs_art:
             try:
                 covered = self.update_cover(result["name"], art)
             except (VisiaUnavailableError, ValueError) as error:
@@ -392,15 +394,17 @@ class VisibleTrackService(TrackCollectionService):
                 )
             else:
                 result["cover_url"], result["cover_art"] = covered["cover_url"], covered["visia"]
-        elif created and not url:
+        elif needs_art and not url:
             result["cover_hint"] = self.COVER_HINT.format(name=result["name"])
         return result
 
     COVER_TAGS = ["cover art", "luna vibia"]
     COVER_HINT = (
-        "{name} has no cover art yet. Now generate cover art that fits its mood and genre "
-        "(landscape, 3:2 aspect ratio, 4.5 x 3, no text) and pass it to update_track_cover; "
-        "it is stored in Luna Visia and set as the cover."
+        "{name} is saved but has no cover art yet. Tell the user it is saved, then generate "
+        "cover art that fits its mood and genre (landscape, 3:2 aspect ratio, 4.5 x 3, no "
+        "text) and pass it to update_track_cover; it is stored in Luna Visia and set as the "
+        "cover. If your turn ends before that, finish it with update_track_cover on the "
+        "user's next message, without uploading the track again."
     )
 
     def update_cover(self, name: str, source: dict[str, Any]) -> Row:

@@ -10,8 +10,9 @@ import unittest
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
+import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 from starlette.testclient import TestClient
@@ -498,7 +499,28 @@ class PlaceholderCoverToolTests(ServerTestCase):
         from app.transport.mcp_tools import SERVER_INSTRUCTIONS
 
         self.assertIn("cover_file", SERVER_INSTRUCTIONS)
-        self.assertIn("upload_track", SERVER_INSTRUCTIONS)
+        self.assertIn("update_track_cover", SERVER_INSTRUCTIONS)
+        self.assertLess(SERVER_INSTRUCTIONS.index("upload_track"), SERVER_INSTRUCTIONS.index("generate its cover art"))
+
+    def test_retried_upload_of_a_placeholder_duplicate_asks_for_art(self) -> None:
+        from fakes import FakeVisia
+
+        self.service.visible.covers = FakeVisia(FakeVisia.VISIBLE_ID)
+        payload = wav_payload_color()
+        self.call("upload_track", {"name": "Again.wav", "content_base64": payload})
+        result = self.call("upload_track", {"name": "Again.wav", "content_base64": payload})
+        self.assertEqual(result["status"], "duplicate")
+        self.assertIn("update_track_cover", result["cover_hint"])
+
+    def test_tracks_with_real_covers_are_not_asked_for_art_again(self) -> None:
+        from fakes import FakeVisia
+
+        self.service.visible.covers = FakeVisia()
+        payload = wav_payload_color()
+        self.call("upload_track", {"name": "Art.wav", "content_base64": payload, "cover_content_base64": "AAAA"})
+        result = self.call("upload_track", {"name": "Art.wav", "content_base64": payload})
+        self.assertEqual(result["status"], "duplicate")
+        self.assertNotIn("cover_hint", result)
 
     def test_ui_clearing_a_cover_ignores_the_placeholder(self) -> None:
         from fakes import FakeVisia
@@ -562,6 +584,79 @@ class ChatUploadToolTests(ServerTestCase):
         for path in ("/mnt/data/cat.wav", "file:///tmp/cat.wav", "sandbox:/mnt/data/cat.wav"):
             with self.subTest(path), self.assertRaisesRegex(Exception, "create_upload_link"):
                 self.call("upload_track", {"track_url": path})
+
+    GOOGLE_LINK = (
+        "https://storage.googleapis.com/bucket/01.mp3?X-Goog-Algorithm=GOOG4-RSA-SHA256"
+        "&X-Goog-Expires=3600&X-Goog-Signature="
+    )
+
+    def failing_download(self, error: Exception) -> list[str]:
+        """Make downloads raise ``error``, and return the list of links they were asked for."""
+        asked: list[str] = []
+
+        def download(url):
+            asked.append(url)
+            raise error
+
+        self.server_resolver()._download = download
+        return asked
+
+    def test_garbled_signed_link_is_rejected_before_downloading(self) -> None:
+        asked = self.failing_download(AssertionError("should not download"))
+        for signature in ("ab" * 265, "ab" * 100, "zz" * 256, ""):
+            with self.subTest(signature), self.assertRaisesRegex(ToolError, "damaged when it was copied"):
+                self.call("upload_track", {"track_url": self.GOOGLE_LINK + signature})
+        self.assertEqual(asked, [])
+
+    def test_whole_signed_link_is_downloaded(self) -> None:
+        self.server_resolver()._download = lambda url: (wav_bytes_color("PNG", "green"), url)
+        result = self.call("upload_track", {"name": "Whole.wav", "track_url": self.GOOGLE_LINK + "ab" * 256})
+        self.assertEqual(result["status"], "created")
+
+    def test_other_signed_links_are_not_judged(self) -> None:
+        self.server_resolver()._download = lambda url: (wav_bytes_color("PNG", "green"), url)
+        link = "https://files.example.test/01.wav?X-Goog-Algorithm=GOOG4-HMAC-SHA256&X-Goog-Signature=abc"
+        self.assertEqual(self.call("upload_track", {"name": "Other.wav", "track_url": link})["status"], "created")
+
+    def http_error(self, status: int) -> httpx.HTTPStatusError:
+        request = httpx.Request("GET", "https://files.example.test/01.mp3?sig=secret")
+        return httpx.HTTPStatusError(
+            "failed for https://files.example.test/01.mp3?sig=secret",
+            request=request,
+            response=httpx.Response(status, request=request),
+        )
+
+    def test_refused_link_says_what_to_do_and_hides_the_link(self) -> None:
+        self.failing_download(self.http_error(403))
+        link = "https://files.example.test/01.mp3?sig=secret"
+        with self.assertLogs("app.transport.mcp_tools", "WARNING") as logs:
+            with self.assertRaises(ToolError) as raised:
+                self.call("upload_track", {"name": "Lost.mp3", "track_url": link, "cover_url": "https://x.test/a.png"})
+        self.assertIn("HTTP 403", str(raised.exception))
+        self.assertIn("Nothing was saved", str(raised.exception))
+        self.assertNotIn("secret", str(raised.exception))
+        self.assertIn("upload_track failed for 'Lost.mp3' (given: ['track_url', 'cover_url'])", logs.output[0])
+        self.assertNotIn("secret", logs.output[0])
+
+    def test_failing_host_is_a_retry_with_the_same_link(self) -> None:
+        for error in (self.http_error(503), httpx.ReadTimeout("slow https://files.example.test/?sig=secret")):
+            self.failing_download(error)
+            with self.subTest(error), self.assertRaises(ToolError) as raised:
+                self.call("upload_track", {"track_url": "https://files.example.test/01.mp3?sig=secret"})
+            self.assertIn("Retry with the same link", str(raised.exception))
+            self.assertNotIn("secret", str(raised.exception))
+
+    def test_tool_calls_are_logged_by_name_without_arguments(self) -> None:
+        from app.transport.luna_mcp import LunaMCP
+        from app.transport.mcp_tools import VibiaMCP
+
+        env = {"LUNA_SSO_URL": "https://sso.example.test"}
+        with patch.dict(os.environ, env), patch.object(LunaMCP, "call_tool", AsyncMock(return_value=[])):
+            server = VibiaMCP("Test", app="vibia", public_url="https://x.test", api_token="t", remove_user=print)
+            with self.assertLogs("app.transport.mcp_tools", "INFO") as logs:
+                asyncio.run(server.call_tool("upload_track", {"track_url": "https://x.test/?sig=secret"}))
+        self.assertIn("Tool call: upload_track", logs.output[0])
+        self.assertNotIn("secret", logs.output[0])
 
     def test_slow_upload_does_not_block_event_loop(self) -> None:
         indexer = self.service.indexer

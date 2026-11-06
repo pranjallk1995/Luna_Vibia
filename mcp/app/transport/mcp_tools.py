@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, WithJsonSchema
 from app.core.models import MetadataChange, MetadataRules
 from app.integrations.remote import TrackSourceResolver
 from app.services.application import VibiaService
+from app.transport.luna_mcp import LunaMCP
 
 Result = TypeVar("Result")
 
@@ -20,14 +21,19 @@ FILE_PARAMS_META = {"openai/fileParams": ["file"]}
 UPLOAD_FILE_PARAMS_META = {"openai/fileParams": ["file", "cover_file"]}
 
 # Read by MCP clients when they connect, before any tool is chosen.
+# The song is uploaded before its art is generated: generating an image can end the
+# client's turn, and music links are long, so nothing should wait on them.
 SERVER_INSTRUCTIONS = (
     "Every track in Luna Vibia has cover art from Luna Visia. When you generate a song "
-    "for Vibia, generate its cover art before calling upload_track: landscape with a 3:2 "
+    "for Vibia, call upload_track straight away, before generating anything else: pass "
+    "the audio as file or track_url, copying a link exactly, character by character. "
+    "Once it is saved, tell the user, then generate its cover art: landscape with a 3:2 "
     "aspect ratio (4.5 x 3, e.g. 1536x1024), fitting its mood, genre, and title, with no "
-    "text. Then pass both in one call: the audio as file or track_url and the art as "
-    "cover_file (or cover_url / cover_content_base64). Do not upload generated music "
-    "without its cover. Vibia stores the art in Luna Visia and sets it as the cover. If "
-    "the art could not be made or stored, add it right after with update_track_cover."
+    "text. Pass the art to update_track_cover, which stores it in Luna Visia and sets it "
+    "as the cover. If your turn ends before the cover is set, finish it with "
+    "update_track_cover on the user's next message, without uploading the track again. "
+    "Art you already have can go in the upload itself, as cover_file, cover_url, or "
+    "cover_content_base64."
 )
 
 
@@ -139,8 +145,8 @@ RenameRequests = Annotated[
 ]
 
 
-def log_image_failure(tool: str, subject: str, source: dict[str, Any], error: Exception) -> None:
-    """Record a failed image call, leaving out links: chat file links are signed."""
+def log_tool_failure(tool: str, subject: str, source: dict[str, Any], error: Exception) -> None:
+    """Record a failed upload or image call, leaving out links: file links are signed."""
     given = [field for field, value in source.items() if value not in (None, "")]
     message = LINK.sub("<link>", str(error))
     logger.warning("%s failed for %r (given: %s): %s: %s", tool, subject, given, type(error).__name__, message)
@@ -153,6 +159,14 @@ async def offload(function: Callable[..., Result], *args: Any) -> Result:
     stall every other request, including the web UI and health checks.
     """
     return await anyio.to_thread.run_sync(function, *args)
+
+
+class VibiaMCP(LunaMCP):
+    """LunaMCP that logs which tool each call ran, never its arguments: they can hold signed links."""
+
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+        logger.info("Tool call: %s", name)
+        return await super().call_tool(name, arguments)
 
 
 class VibiaMCPTools:
@@ -502,12 +516,15 @@ class VibiaMCPTools:
 
             When you generated the music, pass the prompt or style you used as
             notes (and title/artist if any): it is stored with the track and
-            sharpens its caption and tags. Generate its cover art before this call
-            (never upload generated music without it): landscape with a 3:2 aspect
-            ratio (4.5 x 3, e.g. 1536x1024), fitting its mood, genre, and title,
-            with no text. Pass it in this same call as cover_file (the image you generated), cover_url (a public HTTPS
-            image URL or image data URL), or cover_content_base64. The art is stored
-            in Luna Visia, tagged "cover art", and set as the track's cover.
+            sharpens its caption and tags. Call this as soon as the music exists,
+            before generating cover art, so that the song is saved first; copy a
+            track_url exactly, character by character. Then follow the result's
+            cover_hint: generate the art and pass it to update_track_cover.
+
+            Art you already have can go in this same call, as cover_file (an image
+            file), cover_url (a public HTTPS image URL or image data URL), or
+            cover_content_base64. The art is stored in Luna Visia, tagged "cover
+            art", and set as the track's cover.
 
             For a track you did not generate, you may instead search Luna Visia for
             cover art and pass the public_url it returns as cover_url (an immutable
@@ -530,7 +547,19 @@ class VibiaMCPTools:
                 "file": cover_file.model_dump() if cover_file else None,
                 "content_base64": cover_content_base64,
             }
-            return await offload(upload, name, content_base64, track_url, file, given, cover_url, cover_art)
+            try:
+                return await offload(upload, name, content_base64, track_url, file, given, cover_url, cover_art)
+            except Exception as error:
+                source = {
+                    "file": file,
+                    "track_url": track_url,
+                    "content_base64": content_base64,
+                    "cover_file": cover_file,
+                    "cover_url": cover_url,
+                    "cover_content_base64": cover_content_base64,
+                }
+                log_tool_failure("upload_track", name or "(unnamed)", source, error)
+                raise
 
         @server.tool()
         def create_upload_link(name: str, replace: bool = False) -> dict[str, Any]:
@@ -610,7 +639,7 @@ class VibiaMCPTools:
             try:
                 return {"status": "cover_updated", **await offload(visible.update_cover, name, source)}
             except Exception as error:
-                log_image_failure("update_track_cover", name, source, error)
+                log_tool_failure("update_track_cover", name, source, error)
                 raise
 
         @server.tool()

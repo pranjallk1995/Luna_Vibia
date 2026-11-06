@@ -1,5 +1,7 @@
 """Compose and run the Luna Vibia MCP and HTTP server."""
 
+import logging
+
 import uvicorn
 
 from app.transport.branding import ServerBranding
@@ -7,9 +9,8 @@ from app.core import tenancy
 from app.core.config import AppConfig
 from app.data.database import Database
 from app.data.tenants import adopt_loose_files, remove_folder
-from app.transport.luna_mcp import LunaMCP
 from app.transport.http_routes import VibiaHTTPRoutes
-from app.transport.mcp_tools import SERVER_INSTRUCTIONS, VibiaMCPTools
+from app.transport.mcp_tools import SERVER_INSTRUCTIONS, VibiaMCP, VibiaMCPTools
 from app.core.models import MetadataRules
 from app.integrations.remote import TrackSourceResolver
 from app.data.repositories import TrackRepository, PublicURLRepository
@@ -18,6 +19,9 @@ from app.integrations.captioning import OllamaCaptioner
 from app.integrations.clap import ClapEncoder
 from app.integrations.speakers import OwnerSpeakers, SpeakerPlayer, WindowsSpeakerHelper
 from app.integrations.visia import VisiaImageCatalog
+
+# httpx logs every request's full URL at INFO, and music and file links are signed.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 class LunaVibiaApplication:
@@ -55,7 +59,7 @@ class LunaVibiaApplication:
         # Public links are served by this backend, so a new person's start at its address.
         self.database.tenants.after_create = lambda: self.service.urls.seed(config.mcp_public_url or config.public_base_url)
         self.branding = ServerBranding(config.mcp_public_url)
-        self.mcp = LunaMCP(
+        self.mcp = VibiaMCP(
             "Luna Vibia",
             app="vibia",
             remove_user=self.remove_user,
