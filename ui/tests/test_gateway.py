@@ -183,6 +183,12 @@ class ProxyTests(GatewayTestCase):
             self.assertEqual(self.client.request(method, path).status_code, 200, path)
         self.assertEqual(self.backend_requests[1].url.raw_path, b"/api/tracks/b%20b.wav")
 
+    def test_speaker_volume_routes_are_forwarded(self):
+        self.sign_in()
+        self.assertEqual(self.client.get("/api/volume").status_code, 200)
+        self.assertEqual(self.client.post("/api/volume", json={"percent": 50}).status_code, 200)
+        self.assertEqual(self.backend_requests[-1].url.path, "/api/volume")
+
     def test_playlist_routes_are_forwarded_with_names_encoded(self):
         self.sign_in()
         for method, path in (

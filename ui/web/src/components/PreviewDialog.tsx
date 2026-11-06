@@ -1,9 +1,11 @@
 import { ArrowLeft, ArrowRight, Check, Download, Eye, EyeOff, Heart, ImageIcon, Pencil, Plus, Trash2, X } from "lucide-react";
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
 import { coverUrl, downloadUrl, fileUrl, type TrackActions, type TrackRecord, type Section, type Settings } from "../api";
 import { displayName, durationLabel, messageOf, normalizedTag, readableName, sizeLabel, splitName, tagSlot, visibleTags } from "../lib";
+import { useNowPlaying } from "../nowPlaying";
 import { RepeatButton, useRepeat } from "../repeat";
+import { BrowserVolume, useSharedVolume } from "../volume";
 import { useModal } from "./Dialog";
 import type { CardAction } from "./TrackCard";
 import { useToast } from "./Toasts";
@@ -169,6 +171,8 @@ type Props = {
   section: Section;
   settings: Settings;
   actions: TrackActions;
+  /** The tracks being browsed, in order: what plays next once this view closes. */
+  names: string[];
   onStep: (delta: number) => void;
   onAction: (action: CardAction, track: TrackRecord) => void;
   onClose: () => void;
@@ -211,7 +215,7 @@ function CoverEditor({ track, actions }: { track: TrackRecord; actions: TrackAct
 }
 
 /** One track filling the window, with its player on the stage and its details and actions in a side panel. */
-export function PreviewDialog({ track, position, total, next, section, settings, actions, onStep, onAction, onClose }: Props) {
+export function PreviewDialog({ track, position, total, next, section, settings, actions, names, onStep, onAction, onClose }: Props) {
   const ref = useModal();
   const toast = useToast();
   const shownName = readableName(track.name);
@@ -230,10 +234,36 @@ export function PreviewDialog({ track, position, total, next, section, settings,
     onStep(delta);
   };
   const ended = () => {
+    playing.current = false;
     if (repeat.mode !== "all" || total < 2) return;
     setContinuing(true);
     onStep(1);
   };
+
+  // Closing the view hands a playing song to the page's player, which carries on from the
+  // same second with the rest of the list after it. Hidden tracks stop instead, so nothing
+  // hidden plays on once their tab is left.
+  const nowPlaying = useNowPlaying();
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const volume = useSharedVolume();
+  const playing = useRef(false);
+  const latest = useRef({ track, names, section });
+  latest.current = { track, names, section };
+  useLayoutEffect(
+    () => () => {
+      const { track: current, names: list, section: from } = latest.current;
+      if (!playing.current || !audio.current || from === "hidden") return;
+      const index = list.indexOf(current.name);
+      if (index < 0) return;
+      nowPlaying.play({
+        playlist: from === "favorites" ? "Favorites" : "Library",
+        names: list,
+        index,
+        startAt: audio.current.currentTime,
+      });
+    },
+    [nowPlaying],
+  );
 
   const rename = async (draft: string) => {
     const stem = draft.trim();
@@ -279,10 +309,22 @@ export function PreviewDialog({ track, position, total, next, section, settings,
               src={fileUrl(track)}
               autoPlay={continuing}
               loop={repeat.mode === "one" || (repeat.mode === "all" && total < 2)}
+              ref={(element) => {
+                if (element) audio.current = element;
+                volume.ref(element);
+              }}
+              onVolumeChange={volume.onVolumeChange}
+              // Playing here takes over from the page's player, so two songs never play at once.
+              onPlay={() => {
+                playing.current = true;
+                nowPlaying.stop();
+              }}
+              onPause={() => (playing.current = false)}
               onEnded={ended}
             />
             <div className="lv-player-controls">
               <RepeatButton mode={repeat.mode} onCycle={repeat.cycle} />
+              <BrowserVolume />
             </div>
           </div>
           {total > 1 && (

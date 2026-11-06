@@ -306,7 +306,24 @@ class VibiaHTTPRoutes:
         async def beats(request: Request):
             return await anyio.to_thread.run_sync(playback_service.beats, self.name(request))
 
+        async def volume(request: Request):
+            return await anyio.to_thread.run_sync(playback_service.player.volume)
+
+        async def set_volume(request: Request):
+            payload = await self.payload(request)
+            percent, muted = payload.get("percent"), payload.get("muted")
+            if percent is not None and (isinstance(percent, bool) or not isinstance(percent, int) or not 0 <= percent <= 100):
+                raise ValueError("percent must be a whole number from 0 to 100.")
+            if muted is not None and not isinstance(muted, bool):
+                raise ValueError("muted must be true or false.")
+            if percent is None and muted is None:
+                raise ValueError("Give percent, muted, or both.")
+            return await anyio.to_thread.run_sync(playback_service.player.set_volume, percent, None, muted)
+
         self.route("GET", "/api/playback", playback)
+        # The host speakers' volume, for the owner's web UI; others are refused.
+        self.route("GET", "/api/volume", volume)
+        self.route("POST", "/api/volume", set_volume)
         self.route("GET", "/api/tracks/{name}/beats", beats)
 
     def _register_playlists(self) -> None:

@@ -7,7 +7,7 @@
 ![PostgreSQL in Luna Sentia](https://img.shields.io/badge/PostgreSQL-in_Luna_Sentia-4169E1?logo=postgresql&logoColor=white)
 ![CLAP included](https://img.shields.io/badge/CLAP-included-FFD21E?logo=huggingface&logoColor=black)
 ![NVIDIA GPU optional](https://img.shields.io/badge/NVIDIA_GPU-optional-76B900?logo=nvidia&logoColor=white)
-![Status: v1.3](https://img.shields.io/badge/Status-v1.3-2EA043)
+![Status: v1.4](https://img.shields.io/badge/Status-v1.4-2EA043)
 
 <p align="center">
   <a href="docs/assets/luna-vibia-showcase.mp4"><img src="docs/assets/luna-vibia-showcase.webp" alt="From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia, then asking a chat assistant for a playlist through its MCP tools" width="900"></a>
@@ -139,6 +139,15 @@ track), and one (play the current track again). The track view has the same Repe
 all carries on to the next track and round to the first. Rows move up and down, come
 out, or play from that track, and **Add tracks** picks from the library by name or tag.
 On the host's speakers, `play_playlist` takes `shuffle` and `loop`.
+
+The player belongs to the page, not the tab: it sits above every tab, stuck to the top,
+and keeps playing while you browse. Closing a track view while its song plays hands the
+song to the same player, which carries on from that second with the tracks after it.
+Hidden tracks stop instead. Starting a song in a track view stops the page's player, so
+two never play at once. One **volume** slider, remembered between visits, sets both the
+page's player and the track view. The owner also gets a slider and mute button for the
+host speakers, beside the line that says what is playing on them; it changes that
+speaker's own volume, as `set_volume` does, and nobody else can use it.
 
 ## Hidden tracks
 

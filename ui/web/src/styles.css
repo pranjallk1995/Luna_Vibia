@@ -1402,7 +1402,11 @@ html:has(.lv-viewer[open]) {
   display: flex;
   gap: 0.15rem;
 }
+/* Above every tab and stuck to the top, so it stays in reach while browsing. */
 .lv-queue-player {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 4;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.8rem;
@@ -1411,7 +1415,8 @@ html:has(.lv-viewer[open]) {
   padding: 0.6rem;
   border: 1px solid var(--lv-strong);
   border-radius: 0.85rem;
-  background: var(--lv-surface);
+  background: #1c1c1c;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
 .lv-queue-player img {
   border-radius: 0.5rem;
@@ -1689,4 +1694,39 @@ html:has(.lv-bulk) .lv-toasts {
     clip-path: inset(50%);
   }
 
+}
+
+/* Volume sliders: the browser players' level, and the host speakers' for the owner. */
+.lv-volume {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  min-width: 0;
+}
+.lv-volume input[type="range"] {
+  width: 7rem;
+  accent-color: var(--lv-accent);
+  cursor: pointer;
+}
+.lv-volume-value {
+  min-width: 3.2em;
+  color: var(--lv-muted);
+  font-size: var(--luna-text-small);
+  font-variant-numeric: tabular-nums;
+}
+.lv-playback .lv-volume {
+  margin-left: auto;
+}
+.lv-player-controls {
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+@media (max-width: 760px) {
+  .lv-volume input[type="range"] {
+    width: 5rem;
+  }
+  .lv-volume-value {
+    display: none;
+  }
 }

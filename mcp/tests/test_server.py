@@ -30,13 +30,14 @@ from fakes import (
 )
 
 from app.transport.branding import ServerBranding
+from app.core import tenancy
 from app.core.config import AppConfig
 from app.services.downloads import DownloadStore
 from app.transport.http_routes import VibiaHTTPRoutes
 from app.transport.mcp_tools import VibiaMCPTools
 from app.services.media import TrackArchive, display_name
 from app.integrations.remote import TrackSourceResolver
-from app.integrations.speakers import Speaker, SpeakerPlayer, WindowsSpeakerHelper
+from app.integrations.speakers import OwnerSpeakers, Speaker, SpeakerPlayer, WindowsSpeakerHelper
 from app.services.application import VibiaService
 
 
@@ -1019,6 +1020,32 @@ class PlaybackToolTests(ServerTestCase):
         self.service.playback.player = SpeakerPlayer()
         with self.assertRaisesRegex(ToolError, "Windows speaker helper"):
             self.call("get_volume", {})
+
+    def test_the_web_ui_reads_and_sets_the_speaker_volume_for_the_owner_only(self) -> None:
+        class FakeWindows:
+            state = {"volume": 40, "muted": False, "name": "Echo", "description": "Speakers (Echo)"}
+
+            def volume(self):
+                return dict(self.state)
+
+            def set_volume(self, percent=None, change=None, muted=None):
+                if percent is not None:
+                    self.state["volume"] = percent
+                if muted is not None:
+                    self.state["muted"] = muted
+                return dict(self.state)
+
+        self.service.playback.player = OwnerSpeakers(SpeakerPlayer(FakeWindows()))
+        with self.client() as client:
+            self.assertEqual(client.get("/api/volume").json()["volume"], 40)
+            changed = client.post("/api/volume", json={"percent": 65, "muted": False}).json()
+            self.assertEqual((changed["volume"], changed["muted"]), (65, False))
+            for body in ({}, {"percent": 101}, {"percent": "loud"}, {"percent": True}, {"muted": "yes"}):
+                with self.subTest(body=body):
+                    self.assertEqual(client.post("/api/volume", json=body).status_code, 400)
+        with tenancy.acting_as("someone"):
+            with self.assertRaises(PermissionError):
+                self.service.playback.player.volume()
 
     def test_repair_audio_needs_the_helper_and_only_starts_it(self) -> None:
         class FakeWindows:

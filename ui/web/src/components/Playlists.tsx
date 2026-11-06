@@ -27,7 +27,9 @@ import {
   type TrackRecord,
 } from "../api";
 import { durationLabel, matching, messageOf, readableName, remember, remembered } from "../lib";
-import { RepeatButton, useRepeat, type RepeatMode } from "../repeat";
+import { type Queue } from "../nowPlaying";
+import { RepeatButton, type RepeatMode } from "../repeat";
+import { BrowserVolume, useSharedVolume } from "../volume";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Dialog } from "./Dialog";
 import { useToast } from "./Toasts";
@@ -44,10 +46,10 @@ function shuffled<T>(items: T[]): T[] {
   return copy;
 }
 
-type Queue = { playlist: string; names: string[]; index: number };
 
-/** What plays now: a playlist's tracks in an order, moving on (or not) as repeat says. */
-function Player({
+/** What plays now: a playlist's tracks in an order, moving on (or not) as repeat says.
+ * It lives above the tabs, so switching tabs keeps it playing. */
+export function Player({
   queue,
   library,
   repeat,
@@ -64,6 +66,7 @@ function Player({
 }) {
   const name = queue.names[queue.index];
   const track = library.get(name);
+  const volume = useSharedVolume();
   const last = queue.index === queue.names.length - 1;
   const step = (delta: number) => {
     const target = queue.index + delta;
@@ -88,7 +91,12 @@ function Player({
           controls
           autoPlay
           src={fileUrl(track)}
+          // A song carried on from its view picks up at the second it had reached.
+          onLoadedMetadata={(event) => {
+            if (queue.startAt) event.currentTarget.currentTime = queue.startAt;
+          }}
           loop={repeat === "one"}
+          {...volume}
           onEnded={ended}
         />
       </div>
@@ -100,6 +108,7 @@ function Player({
           <SkipForward size={18} />
         </button>
         <RepeatButton mode={repeat} onCycle={onRepeat} />
+        <BrowserVolume />
         <button className="lv-icon-button" type="button" aria-label="Stop" onClick={onStop}>
           <Square size={16} />
         </button>
@@ -204,7 +213,14 @@ function RenameForm({ name, onDone }: { name: string; onDone: (renamed?: string)
   );
 }
 
-export function Playlists() {
+type Props = {
+  /** What plays now; kept by the app, so it carries on in other tabs. */
+  queue: Queue | null;
+  onQueue: (queue: Queue | null) => void;
+  repeat: { mode: RepeatMode; cycle: () => void };
+};
+
+export function Playlists({ queue, onQueue, repeat }: Props) {
   const toast = useToast();
   const playlists = usePlaylists();
   const libraryQuery = useTracks("view");
@@ -228,8 +244,6 @@ export function Playlists() {
   const [renaming, setRenaming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [shuffle, setShuffle] = useState(() => remembered("lv-shuffle", ["on", "off"] as const, "off") === "on");
-  const repeat = useRepeat("lv-repeat-playlist");
-  const [queue, setQueue] = useState<Queue | null>(null);
 
   const choose = (name: string) => {
     setSelected(name);
@@ -264,7 +278,7 @@ export function Playlists() {
     if (!current || !tracks.length) return;
     let order = tracks.map((track) => track.name);
     if (shuffle) order = from ? [from, ...shuffled(order.filter((name) => name !== from))] : shuffled(order);
-    setQueue({ playlist: current, names: order, index: from && !shuffle ? order.indexOf(from) : 0 });
+    onQueue({ playlist: current, names: order, index: from && !shuffle ? order.indexOf(from) : 0 });
   };
 
   const run = (work: Promise<unknown>, failed: string) => work.catch((failure) => toast(messageOf(failure, failed)));
@@ -316,16 +330,6 @@ export function Playlists() {
       </aside>
 
       <section className="lv-playlist-detail" aria-label={current ?? "Playlist"}>
-        {queue && (
-          <Player
-            queue={queue}
-            library={library}
-            repeat={repeat.mode}
-            onRepeat={repeat.cycle}
-            onMove={(index) => setQueue({ ...queue, index })}
-            onStop={() => setQueue(null)}
-          />
-        )}
         {current && playlist.data && (
           <>
             <header className="lv-playlist-head">
@@ -429,7 +433,7 @@ export function Playlists() {
           icon={Trash2}
           run={async () => {
             await actions.remove.mutateAsync(current);
-            if (queue?.playlist === current) setQueue(null);
+            if (queue?.playlist === current) onQueue(null);
           }}
           onClose={() => setDeleting(false)}
         />

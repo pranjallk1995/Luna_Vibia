@@ -33,6 +33,8 @@ PROXIED_ROUTES = tuple(
     (method, re.compile(pattern))
     for method, pattern in (
         ("GET", r"/api/playback"),
+        ("GET", r"/api/volume"),
+        ("POST", r"/api/volume"),
         ("POST", r"/api/tracks"),
         ("DELETE", rf"/api/tracks/{NAME}"),
         ("POST", rf"/api/tracks/{NAME}/(rename|metadata|cover)"),

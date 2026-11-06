@@ -220,6 +220,7 @@ export function Gallery({ section, layout, settings }: Props) {
           section={section}
           settings={settings}
           actions={actions}
+          names={filtered.map((track) => track.name)}
           onStep={stepViewer}
           onAction={onAction}
           onClose={() => setOpenName(null)}

@@ -1,15 +1,18 @@
 import { Eye, Heart, LayoutGrid, List, ListMusic, Lock, LogOut, Upload, Volume2, type LucideIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
-import { usePlayback, type Section, type Settings } from "./api";
+import { usePlayback, useTracks, type Section, type Settings } from "./api";
 import { Gallery } from "./components/Gallery";
 import { HiddenGate } from "./components/HiddenGate";
-import { Playlists } from "./components/Playlists";
+import { Player, Playlists } from "./components/Playlists";
 import { Brand, ForbiddenPage, SignInPage, UnreachablePage } from "./components/Gate";
 import { UploadDialog } from "./components/UploadDialog";
 import { useSession } from "./http";
 import { remember, remembered } from "./lib";
 import { describePlayback } from "./playback";
+import { NowPlayingContext, type Queue } from "./nowPlaying";
+import { useRepeat } from "./repeat";
+import { SpeakerVolume } from "./volume";
 import { useUploads } from "./uploads";
 
 // The library's sections, plus the Playlists tab.
@@ -37,6 +40,7 @@ function PlaybackBar({ refreshSeconds }: { refreshSeconds: number }) {
       <span>
         {parts.map(({ text, strong }, index) => (strong ? <strong key={index}>{text}</strong> : text))}
       </span>
+      {data?.output && <SpeakerVolume />}
     </p>
   );
 }
@@ -45,6 +49,15 @@ function Workspace({ logoutUrl, settings }: { logoutUrl: string; settings: Setti
   const [section, setSection] = useState<Tab>(() => remembered("lv-section", TABS, "view"));
   const [layout, setLayout] = useState<Layout>(() => remembered("lv-layout", LAYOUTS, "grid"));
   const [uploading, setUploading] = useState(false);
+  // The playlist player belongs to the page, not the Playlists tab, so it keeps playing in every tab.
+  const [queue, setQueue] = useState<Queue | null>(null);
+  const repeat = useRepeat("lv-repeat-playlist");
+  const library = useTracks("view");
+  const tracksByName = useMemo(
+    () => new Map((library.data ?? []).map((track) => [track.name, track] as const)),
+    [library.data],
+  );
+  const nowPlaying = useMemo(() => ({ play: setQueue, stop: () => setQueue(null) }), []);
   const uploads = useUploads();
 
   const chooseSection = (id: Tab) => {
@@ -58,6 +71,7 @@ function Workspace({ logoutUrl, settings }: { logoutUrl: string; settings: Setti
   };
 
   return (
+    <NowPlayingContext.Provider value={nowPlaying}>
     <main className="lv-page">
       <div className="lv-header-row">
         <Brand />
@@ -94,6 +108,17 @@ function Workspace({ logoutUrl, settings }: { logoutUrl: string; settings: Setti
 
       <PlaybackBar refreshSeconds={settings.playback_refresh_seconds} />
 
+      {queue && (
+        <Player
+          queue={queue}
+          library={tracksByName}
+          repeat={repeat.mode}
+          onRepeat={repeat.cycle}
+          onMove={(index) => setQueue({ ...queue, index, startAt: undefined })}
+          onStop={() => setQueue(null)}
+        />
+      )}
+
       <nav className="lv-nav" aria-label="Gallery section">
         {SECTIONS.map(({ id, label, icon: Icon }) => (
           <button
@@ -111,7 +136,7 @@ function Workspace({ logoutUrl, settings }: { logoutUrl: string; settings: Setti
       </nav>
 
       {section === "playlists" ? (
-        <Playlists />
+        <Playlists queue={queue} onQueue={setQueue} repeat={repeat} />
       ) : section === "hidden" ? (
         <HiddenGate noun="tracks">
           <Gallery key={section} section={section} layout={layout} settings={settings} />
@@ -122,6 +147,7 @@ function Workspace({ logoutUrl, settings }: { logoutUrl: string; settings: Setti
 
       {uploading && <UploadDialog uploads={uploads} settings={settings} onClose={() => setUploading(false)} />}
     </main>
+    </NowPlayingContext.Provider>
   );
 }
 
