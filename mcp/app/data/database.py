@@ -68,6 +68,24 @@ CREATE TABLE IF NOT EXISTS track_beats (
     strengths real[] NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
 );
+-- Saved playlists. Their tracks are kept by track_id, so renaming a track keeps it in
+-- place, and deleting one removes it. Names are unique whatever their case.
+CREATE TABLE IF NOT EXISTS playlists (
+    playlist_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL CHECK (length(trim(name)) > 0),
+    description text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS playlists_name_idx ON playlists (lower(name));
+CREATE TABLE IF NOT EXISTS playlist_tracks (
+    playlist_id uuid NOT NULL REFERENCES playlists (playlist_id) ON DELETE CASCADE,
+    track_id uuid NOT NULL REFERENCES track_metadata (track_id) ON DELETE CASCADE,
+    position integer NOT NULL,
+    added_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (playlist_id, track_id)
+);
+CREATE INDEX IF NOT EXISTS playlist_tracks_order_idx ON playlist_tracks (playlist_id, position);
 CREATE TABLE IF NOT EXISTS vault_config (
     singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
     public_base_url text NOT NULL,

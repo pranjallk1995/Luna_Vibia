@@ -1,8 +1,10 @@
-import { Eye, Heart, LayoutGrid, List, Lock, LogOut, Upload, Volume2, type LucideIcon } from "lucide-react";
+import { Eye, Heart, LayoutGrid, List, ListMusic, Lock, LogOut, Upload, Volume2, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 
 import { usePlayback, type Section, type Settings } from "./api";
 import { Gallery } from "./components/Gallery";
+import { HiddenGate } from "./components/HiddenGate";
+import { Playlists } from "./components/Playlists";
 import { Brand, ForbiddenPage, SignInPage, UnreachablePage } from "./components/Gate";
 import { UploadDialog } from "./components/UploadDialog";
 import { useSession } from "./http";
@@ -10,9 +12,14 @@ import { remember, remembered } from "./lib";
 import { describePlayback } from "./playback";
 import { useUploads } from "./uploads";
 
-const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
+// The library's sections, plus the Playlists tab.
+type Tab = Section | "playlists";
+const TABS = ["view", "favorites", "playlists", "hidden"] as const;
+
+const SECTIONS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: "view", label: "View Tracks", icon: Eye },
   { id: "favorites", label: "Favorite Tracks", icon: Heart },
+  { id: "playlists", label: "Playlists", icon: ListMusic },
   { id: "hidden", label: "Hidden Tracks", icon: Lock },
 ];
 
@@ -35,14 +42,12 @@ function PlaybackBar({ refreshSeconds }: { refreshSeconds: number }) {
 }
 
 function Workspace({ logoutUrl, settings }: { logoutUrl: string; settings: Settings }) {
-  const [section, setSection] = useState<Section>(() =>
-    remembered("lv-section", ["view", "favorites", "hidden"] as const, "view"),
-  );
+  const [section, setSection] = useState<Tab>(() => remembered("lv-section", TABS, "view"));
   const [layout, setLayout] = useState<Layout>(() => remembered("lv-layout", LAYOUTS, "grid"));
   const [uploading, setUploading] = useState(false);
   const uploads = useUploads();
 
-  const chooseSection = (id: Section) => {
+  const chooseSection = (id: Tab) => {
     setSection(id);
     remember("lv-section", id);
   };
@@ -105,7 +110,15 @@ function Workspace({ logoutUrl, settings }: { logoutUrl: string; settings: Setti
         ))}
       </nav>
 
-      <Gallery key={section} section={section} layout={layout} settings={settings} />
+      {section === "playlists" ? (
+        <Playlists />
+      ) : section === "hidden" ? (
+        <HiddenGate noun="tracks">
+          <Gallery key={section} section={section} layout={layout} settings={settings} />
+        </HiddenGate>
+      ) : (
+        <Gallery key={section} section={section} layout={layout} settings={settings} />
+      )}
 
       {uploading && <UploadDialog uploads={uploads} settings={settings} onClose={() => setUploading(false)} />}
     </main>

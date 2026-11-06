@@ -7,7 +7,7 @@
 ![PostgreSQL in Luna Sentia](https://img.shields.io/badge/PostgreSQL-in_Luna_Sentia-4169E1?logo=postgresql&logoColor=white)
 ![CLAP included](https://img.shields.io/badge/CLAP-included-FFD21E?logo=huggingface&logoColor=black)
 ![NVIDIA GPU optional](https://img.shields.io/badge/NVIDIA_GPU-optional-76B900?logo=nvidia&logoColor=white)
-![Status: v1.1](https://img.shields.io/badge/Status-v1.1-2EA043)
+![Status: v1.2](https://img.shields.io/badge/Status-v1.2-2EA043)
 
 <p align="center">
   <a href="docs/assets/luna-vibia-showcase.mp4"><img src="docs/assets/luna-vibia-showcase.webp" alt="From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia, then asking a chat assistant for a playlist through its MCP tools" width="900"></a>
@@ -112,7 +112,29 @@ title, artist, and tags (75% meaning, 25% words; `SEMANTIC_WEIGHT` in
 drops those well below the best one, then picks tracks one at a time by how well they
 fit minus how much they sound like the tracks already picked, until the requested
 length is filled. With too little fitting music it returns a shorter playlist and says
-to loop it.
+to loop it. Nothing is saved until it is passed to `create_playlist`.
+
+## Playlists
+
+Playlists are saved, named, ordered lists of tracks, in the **Playlists** tab and through
+the playlist tools below. They hold tracks by `track_id`, so renaming a track keeps it in
+place and deleting one takes it out. A hidden track drops out of every playlist while
+hidden and comes back at the end when it is shown again. Names are unique whatever their
+case.
+
+The tab plays a playlist in the browser. **Shuffle** plays it in a random order without
+changing the saved order, and **Repeat** cycles off, all (start again after the last
+track), and one (play the current track again). The track view has the same Repeat:
+all carries on to the next track and round to the first. Rows move up and down, come
+out, or play from that track, and **Add tracks** picks from the library by name or tag.
+On the host's speakers, `play_playlist` takes `shuffle` and `loop`.
+
+## Hidden tracks
+
+Hidden tracks are never reachable through MCP tools or playlists. In the web UI they
+wait for your [hidden-items PIN](https://github.com/pranjallk1995/Luna_Sentia#hidden-items-pin):
+it unlocks them until you leave the tab or stay idle for 10 minutes, and while they are
+locked their files and covers are refused too.
 
 ## Cover art from Luna Visia
 
@@ -218,6 +240,15 @@ later, while Docling finishes its document, then runs that call on the CPU.
 - `list_tracks` - visible tracks in the saved order or newest first, with captions, facts, `cover_url`, and playable `public_url`.
 - `get_track_url` - the playable public URL of one track.
 
+### Playlists
+
+- `list_playlists` / `get_playlist` - the saved playlists, and one playlist's tracks in order.
+- `create_playlist` - save a playlist, optionally with tracks (for example from `suggest_playlist`).
+- `update_playlist` / `delete_playlist` - rename it or change its description, or delete it; its tracks stay in the library.
+- `add_tracks_to_playlist` / `remove_tracks_from_playlist` - add tracks at a position or at the end, or take them out.
+- `reorder_playlist` / `move_playlist_track` - put every track in a new order, or move one track to a position.
+- `play_playlist` - play it on the host's speakers, in order or with `shuffle`, optionally looped; the saved order stays.
+
 ### Play on the host's speakers
 
 - `play_tracks` - play tracks out loud, in order and optionally looped, on a speaker of the machine running Vibia. With several speakers connected and none named, nothing plays: it returns `choose_speaker` and the options so the LLM asks which one.
@@ -290,7 +321,9 @@ only report. After changing `host/`, run `systemctl --user restart luna-vibia-sp
 caption and tags, title, artist, generator notes, format, duration, sample rate,
 channels, bitrate, tempo, key, energy, `cover_url`, the CLAP `embedding` (pgvector, HNSW
 cosine index), an optional similarity `showcase_rank`, a weighted full-text `search_vector`, and the hidden, favorite, and
-public-URL fields. `vault_security` and `vault_config` are as in Luna Visia.
+public-URL fields. `playlists` holds each playlist's name and description, and
+`playlist_tracks` its tracks by `track_id` and position. `vault_security` and
+`vault_config` are as in Luna Visia.
 
 ## Database UI
 

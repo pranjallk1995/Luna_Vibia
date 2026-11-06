@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
 
 import { coverUrl, downloadUrl, fileUrl, type TrackActions, type TrackRecord, type Section, type Settings } from "../api";
 import { displayName, durationLabel, messageOf, normalizedTag, readableName, sizeLabel, splitName, tagSlot, visibleTags } from "../lib";
+import { RepeatButton, useRepeat } from "../repeat";
 import { useModal } from "./Dialog";
 import type { CardAction } from "./TrackCard";
 import { useToast } from "./Toasts";
@@ -221,6 +222,19 @@ export function PreviewDialog({ track, position, total, next, section, settings,
     new Image().src = coverUrl(next, "large");
   }, [next]);
 
+  // Repeat all carries on to the next track (and round to the first); repeat one plays this one again.
+  const repeat = useRepeat("lv-repeat-track");
+  const [continuing, setContinuing] = useState(false);
+  const step = (delta: number) => {
+    setContinuing(false);
+    onStep(delta);
+  };
+  const ended = () => {
+    if (repeat.mode !== "all" || total < 2) return;
+    setContinuing(true);
+    onStep(1);
+  };
+
   const rename = async (draft: string) => {
     const stem = draft.trim();
     if (stem === storedStem) return;
@@ -233,8 +247,8 @@ export function PreviewDialog({ track, position, total, next, section, settings,
 
   const stepWithArrowKeys = (event: KeyboardEvent) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLAudioElement) return;
-    if (event.key === "ArrowLeft") onStep(-1);
-    if (event.key === "ArrowRight") onStep(1);
+    if (event.key === "ArrowLeft") step(-1);
+    if (event.key === "ArrowRight") step(1);
   };
 
   return (
@@ -258,14 +272,25 @@ export function PreviewDialog({ track, position, total, next, section, settings,
           <div className="lv-player">
             <img src={coverUrl(track, "large")} alt="" width={720} height={480} />
             {/* Keyed so stepping to another track never keeps playing the last one. */}
-            <audio key={track.name} controls preload="metadata" src={fileUrl(track)} />
+            <audio
+              key={track.name}
+              controls
+              preload="metadata"
+              src={fileUrl(track)}
+              autoPlay={continuing}
+              loop={repeat.mode === "one" || (repeat.mode === "all" && total < 2)}
+              onEnded={ended}
+            />
+            <div className="lv-player-controls">
+              <RepeatButton mode={repeat.mode} onCycle={repeat.cycle} />
+            </div>
           </div>
           {total > 1 && (
             <>
-              <button className="lv-step lv-step-prev" type="button" aria-label="Previous track" onClick={() => onStep(-1)}>
+              <button className="lv-step lv-step-prev" type="button" aria-label="Previous track" onClick={() => step(-1)}>
                 <ArrowLeft size={18} />
               </button>
-              <button className="lv-step lv-step-next" type="button" aria-label="Next track" onClick={() => onStep(1)}>
+              <button className="lv-step lv-step-next" type="button" aria-label="Next track" onClick={() => step(1)}>
                 <ArrowRight size={18} />
               </button>
             </>

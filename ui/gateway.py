@@ -23,6 +23,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from config import SSOConfig, UIConfig
+from hidden_pin import LOCKED, HiddenPin
 from sso import CURRENT_USER, LunaSingleSignOn, send_user, signed_in_user
 from tracks import TrackFiles
 
@@ -38,8 +39,17 @@ PROXIED_ROUTES = tuple(
         ("POST", r"/api/favorites"),
         ("POST", r"/api/hidden/(hide|restore|delete)"),
         ("POST", rf"/api/hidden/tracks/{NAME}/metadata"),
+        ("GET", r"/api/playlists"),
+        ("POST", r"/api/playlists"),
+        ("GET", rf"/api/playlists/{NAME}"),
+        ("POST", rf"/api/playlists/{NAME}"),
+        ("DELETE", rf"/api/playlists/{NAME}"),
+        ("POST", rf"/api/playlists/{NAME}/(add|remove|order|move)"),
     )
 )
+# Changes to hidden items, which wait for the PIN. Hiding a visible item does not.
+HIDDEN_CHANGES = re.compile(r"/api/hidden/(?!hide\Z).+")
+SENTIA_AWAY = "Luna Sentia, which checks your PIN, is unavailable. Please try again."
 UNAVAILABLE = "Luna Vibia's backend is unavailable. Please try again."
 
 
@@ -66,6 +76,7 @@ class UIGateway:
         self.config = config
         self.vaults: dict[str, TrackFiles] = {}
         self.sso = LunaSingleSignOn(config.allowed_emails, config.sso, sso_transport, app="vibia")
+        self.pin = HiddenPin(config.sso, sso_transport)
         self.backend = httpx.AsyncClient(
             event_hooks={"request": [send_user]},
             base_url=config.api_url,
@@ -200,6 +211,71 @@ class UIGateway:
         )
         return serve(filename=download) if download else serve()
 
+    # Hidden items
+
+    @staticmethod
+    def token(request: Request) -> str | None:
+        return request.cookies.get(SSOConfig.COOKIE_NAME)
+
+    def unlocked_only(self, handler: Callable[[Request], Awaitable[Response]]):
+        """Run ``handler`` only once this session has typed the hidden-items PIN."""
+
+        async def endpoint(request: Request) -> Response:
+            if not self.pin.is_unlocked(self.token(request)):
+                return JSONResponse({"error": LOCKED, "locked": True}, status_code=423)
+            return await handler(request)
+
+        return endpoint
+
+    async def hidden_set(self) -> set[str]:
+        response = await self.backend.get("/api/hidden/tracks")
+        response.raise_for_status()
+        return {item["name"] for item in response.json().get("tracks", [])}
+
+    def guarded(self, handler: Callable[[Request], Awaitable[Response]]):
+        """Serve a hidden item's files only while unlocked, and never let the browser keep them."""
+
+        async def endpoint(request: Request) -> Response:
+            unlocked = self.pin.is_unlocked(self.token(request))
+            try:
+                hidden = request.path_params["name"] in await self.pin.hidden_names(signed_in_user(), self.hidden_set)
+            except httpx.HTTPError:
+                if not unlocked:
+                    return JSONResponse({"error": UNAVAILABLE}, status_code=502)
+                hidden = True
+            if hidden and not unlocked:
+                return JSONResponse({"error": "Track not found."}, status_code=404)
+            response = await handler(request)
+            if hidden:
+                response.headers["Cache-Control"] = "private, no-store"
+            return response
+
+        return endpoint
+
+    async def pin_status(self, request: Request) -> Response:
+        try:
+            status = await self.pin.status(self.token(request), self.here(request))
+        except httpx.HTTPError:
+            # Not a 5xx: Cloudflare would show its own error page instead of this message.
+            return JSONResponse({"error": SENTIA_AWAY}, status_code=409)
+        return JSONResponse(status, headers={"Cache-Control": "no-store"})
+
+    async def unlock(self, request: Request) -> Response:
+        try:
+            pin = str((await request.json()).get("pin", ""))[:32]
+        except (ValueError, AttributeError):
+            return JSONResponse({"error": "Send the PIN as JSON."}, status_code=400)
+        try:
+            status, answer = await self.pin.unlock(self.token(request), pin)
+        except httpx.HTTPError:
+            # Not a 5xx: Cloudflare would show its own error page instead of this message.
+            return JSONResponse({"error": SENTIA_AWAY}, status_code=409)
+        return JSONResponse(answer, status_code=status, headers={"Cache-Control": "no-store"})
+
+    async def lock(self, request: Request) -> Response:
+        self.pin.lock(self.token(request))
+        return JSONResponse({"unlocked": False})
+
     # Backend
 
     @staticmethod
@@ -212,6 +288,8 @@ class UIGateway:
         path = request.url.path
         if not any(method == request.method and pattern.fullmatch(path) for method, pattern in PROXIED_ROUTES):
             return JSONResponse({"error": "Not found."}, status_code=404)
+        if HIDDEN_CHANGES.fullmatch(path) and not self.pin.is_unlocked(self.token(request)):
+            return JSONResponse({"error": LOCKED, "locked": True}, status_code=423)
         body = await request.body()
         if len(body) > UIConfig.MAX_REQUEST_BYTES:
             return JSONResponse({"error": "This request is too large."}, status_code=413)
@@ -227,6 +305,9 @@ class UIGateway:
             )
         except httpx.HTTPError:
             return JSONResponse({"error": UNAVAILABLE}, status_code=502)
+        if request.method != "GET":
+            # Something may have been hidden, shown, renamed, or deleted.
+            self.pin.forget_names(signed_in_user())
         return Response(
             response.content,
             status_code=response.status_code,
@@ -247,9 +328,12 @@ class UIGateway:
                 Route("/_stcore/health", self.health),
                 Route("/auth/session", self.session),
                 Route("/app/tracks", self.protected(self.collection("/api/metadata"))),
-                Route("/app/hidden", self.protected(self.collection("/api/hidden/tracks"))),
-                Route("/app/covers/{name}", self.protected(self.cover)),
-                Route("/app/files/{name}", self.protected(self.file)),
+                Route("/app/hidden/pin", self.protected(self.pin_status)),
+                Route("/app/hidden/unlock", self.protected(self.unlock), methods=["POST"]),
+                Route("/app/hidden/lock", self.protected(self.lock), methods=["POST"]),
+                Route("/app/hidden", self.protected(self.unlocked_only(self.collection("/api/hidden/tracks")))),
+                Route("/app/covers/{name}", self.protected(self.guarded(self.cover))),
+                Route("/app/files/{name}", self.protected(self.guarded(self.file))),
                 Route("/api/{path:path}", self.protected(self.proxy), methods=["POST", "DELETE", "GET"]),
                 Mount("/", StaticApp(directory=UIConfig.STATIC_DIR, html=True, check_dir=False)),
             ]

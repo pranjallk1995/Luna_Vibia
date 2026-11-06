@@ -187,6 +187,7 @@ class VibiaMCPTools:
         self._register_library_tools()
         self._register_delivery_tools()
         self._register_playback_tools()
+        self._register_playlist_tools()
         self._register_mutation_tools()
 
     def _register_library_tools(self) -> None:
@@ -265,7 +266,8 @@ class VibiaMCPTools:
             orders them to fill about `minutes` while avoiding tracks that sound
             alike. Returns the tracks in play order with public_url and cover_url.
             If the library holds less fitting music than requested, the playlist
-            is shorter and the note says to loop it.
+            is shorter and the note says to loop it. Nothing is saved: to keep it,
+            pass its track names to create_playlist.
             """
             MetadataRules.require_lowercase_tags(tags, "tags")
             return await offload(
@@ -477,6 +479,90 @@ class VibiaMCPTools:
             failed, the log says what to do next; tell the user.
             """
             return await offload(playback.player.audio_repair_status)
+
+    def _register_playlist_tools(self) -> None:
+        server, saved = self.server, self.service.saved_playlists
+
+        @server.tool()
+        async def list_playlists() -> dict[str, Any]:
+            """List the saved playlists with their descriptions, track counts, and lengths."""
+            return await offload(saved.list)
+
+        @server.tool()
+        async def get_playlist(name: str) -> dict[str, Any]:
+            """Return one saved playlist's tracks in order, with position (1 = first),
+            title, artist, duration, tags, cover_url, and public_url.
+
+            Hidden tracks are left out while hidden; a restored track comes back at
+            the end. name matches whatever its case.
+            """
+            return await offload(saved.get, name)
+
+        @server.tool()
+        async def create_playlist(
+            name: str, description: str | None = None, tracks: list[str] | None = None
+        ) -> dict[str, Any]:
+            """Save a new playlist, optionally with tracks in order.
+
+            tracks are exact names from list_tracks, search_tracks, or
+            suggest_playlist (at most 500). Names are unique whatever their case and
+            cannot contain "/".
+            """
+            return await offload(saved.create, name, description, tracks)
+
+        @server.tool()
+        async def update_playlist(
+            name: str, new_name: str | None = None, description: str | None = None
+        ) -> dict[str, Any]:
+            """Rename a playlist and/or replace its description; its tracks stay as they are."""
+            return await offload(saved.update, name, new_name, description)
+
+        @server.tool()
+        async def delete_playlist(name: str) -> dict[str, Any]:
+            """Delete a saved playlist. Its tracks stay in the library."""
+            return await offload(saved.delete, name)
+
+        @server.tool()
+        async def add_tracks_to_playlist(
+            name: str, tracks: list[str], position: int | None = None
+        ) -> dict[str, Any]:
+            """Add tracks to a playlist, in the given order, at position (1 = first) or at the end.
+
+            Tracks already in it stay where they are (already_there). Unknown or
+            hidden names fail the whole call, so nothing half-changes.
+            """
+            return await offload(saved.add_tracks, name, tracks, position)
+
+        @server.tool()
+        async def remove_tracks_from_playlist(name: str, tracks: list[str]) -> dict[str, Any]:
+            """Take tracks out of a playlist; they stay in the library. Names not in it are
+            listed in not_in_playlist."""
+            return await offload(saved.remove_tracks, name, tracks)
+
+        @server.tool()
+        async def reorder_playlist(name: str, tracks: list[str]) -> dict[str, Any]:
+            """Put a playlist in a new order: tracks names every one of its tracks exactly
+            once, first to last. To move a single track, use move_playlist_track."""
+            return await offload(saved.reorder, name, tracks)
+
+        @server.tool()
+        async def move_playlist_track(name: str, track: str, position: int) -> dict[str, Any]:
+            """Move one track within a playlist to position (1 = first; past the end puts it last)."""
+            return await offload(saved.move, name, track, position)
+
+        @server.tool()
+        async def play_playlist(
+            name: str, shuffle: bool = False, loop: bool = False, speaker: str | None = None
+        ) -> dict[str, Any]:
+            """Play a saved playlist out loud on the host machine's speakers.
+
+            shuffle=true plays it in a random order without changing the saved
+            order; the result's order says what plays. loop=true repeats it. speaker
+            works as in play_tracks: pass it only when the user names one, and if the
+            result is "choose_speaker", ask which and call again. Starting this stops
+            what was playing.
+            """
+            return await offload(saved.play, name, shuffle, loop, speaker)
 
     def _register_mutation_tools(self) -> None:
         server, visible, sources, uploads = (

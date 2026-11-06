@@ -205,7 +205,7 @@ a {
 
 .lv-nav {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 0.2rem;
   padding: 0.4rem;
   margin: 0.2rem 0 1.15rem;
@@ -1231,4 +1231,246 @@ html:has(.lv-viewer[open]) {
 
 .lv-panel .lv-button-wide {
   margin-top: 0;
+}
+
+/* The PIN in front of the Hidden tab (HiddenGate.tsx). */
+.lv-pin {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  max-width: 26rem;
+  margin: 3rem auto;
+  padding: 1.5rem;
+  border: 1px solid var(--lv-border);
+  border-radius: 0.85rem;
+  background: var(--lv-surface);
+  text-align: center;
+}
+.lv-pin h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.lv-pin .lv-caption {
+  margin: 0;
+}
+.lv-pin .lv-alert {
+  margin: 0;
+}
+.lv-pin-input {
+  max-width: 12rem;
+  text-align: center;
+  letter-spacing: 0.3em;
+}
+.lv-pin-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  color: var(--lv-muted);
+  font-size: var(--luna-text-small);
+}
+.lv-pin-bar span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* The song view's repeat button, under its player. */
+.lv-player-controls {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.6rem;
+}
+
+/* The Playlists tab. */
+.lv-playlists {
+  display: grid;
+  grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+.lv-playlist-list {
+  display: grid;
+  gap: 0.4rem;
+}
+.lv-playlist-new {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+.lv-playlist-item {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--lv-border);
+  border-radius: 0.6rem;
+  background: var(--lv-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lv-playlist-item:hover {
+  background: var(--lv-control-hover);
+}
+.lv-playlist-active {
+  border-color: var(--lv-strong);
+  background: var(--lv-soft);
+}
+.lv-playlist-item span,
+.lv-playlist-name {
+  display: grid;
+  min-width: 0;
+}
+.lv-playlist-item small,
+.lv-playlist-name small {
+  color: var(--lv-muted);
+}
+.lv-playlist-item strong,
+.lv-playlist-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lv-playlist-head h2 {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0 0 0.3rem;
+  font-size: 1.15rem;
+}
+.lv-playlist-rename {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+.lv-playlist-rename .lv-input {
+  max-width: 20rem;
+}
+.lv-playlist-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.6rem 0 0.9rem;
+}
+.lv-playlist-tracks {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lv-playlist-track {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--lv-border);
+  border-radius: 0.6rem;
+  background: var(--lv-surface);
+}
+.lv-playlist-playing {
+  border-color: var(--lv-strong);
+  background: var(--lv-soft);
+}
+.lv-playlist-play {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 40px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0.4rem;
+  background: var(--lv-control);
+  color: inherit;
+  cursor: pointer;
+}
+.lv-playlist-play img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lv-playlist-row-actions {
+  display: flex;
+  gap: 0.15rem;
+}
+.lv-queue-player {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0.6rem;
+  border: 1px solid var(--lv-strong);
+  border-radius: 0.85rem;
+  background: var(--lv-surface);
+}
+.lv-queue-player img {
+  border-radius: 0.5rem;
+  object-fit: cover;
+}
+.lv-queue-now {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.lv-queue-now audio {
+  width: 100%;
+  margin-top: 0.3rem;
+}
+.lv-queue-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+}
+.lv-pick-list {
+  display: grid;
+  gap: 0.2rem;
+  max-height: 50vh;
+  margin: 0.7rem 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.lv-pick-list label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.35rem 0.4rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+.lv-pick-list label:hover {
+  background: var(--lv-control-hover);
+}
+
+@media (max-width: 760px) {
+  .lv-playlists {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lv-playlist-track {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .lv-playlist-track > .lv-caption {
+    display: none;
+  }
+  .lv-queue-player {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lv-queue-player img {
+    display: none;
+  }
+  .lv-repeat-label {
+    display: none;
+  }
 }

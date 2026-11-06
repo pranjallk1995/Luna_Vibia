@@ -209,6 +209,59 @@ class FakeTrackRepository:
         return len(candidates), candidates[offset : offset + limit]
 
 
+class FakePlaylistRepository:
+    """An in-memory PlaylistRepository: deleted tracks drop out, as the foreign key makes them."""
+
+    def __init__(self, tracks: FakeTrackRepository) -> None:
+        self.tracks = tracks
+        self.playlists: dict[str, dict] = {}
+        self.order: dict[str, list[str]] = {}
+
+    def _track(self, track_id):
+        return next((row for row in self.tracks.rows.values() if row["track_id"] == track_id), None)
+
+    def _summary(self, playlist):
+        rows = [self._track(track_id) for track_id in self.order[playlist["playlist_id"]]]
+        visible = [row for row in rows if row and not row["hidden"]]
+        return {**playlist, "track_count": len(visible),
+                "duration_seconds": float(sum(row["duration_seconds"] or 0 for row in visible))}
+
+    def list(self):
+        return [self._summary(row) for row in sorted(self.playlists.values(), key=lambda row: row["name"].lower())]
+
+    def get(self, name):
+        row = next((row for row in self.playlists.values() if row["name"].lower() == name.lower()), None)
+        return self._summary(row) if row else None
+
+    def entries(self, playlist_id):
+        rows = [self._track(track_id) for track_id in self.order[playlist_id]]
+        return [{"position": index, **self.tracks._public(row)} for index, row in enumerate(filter(None, rows), start=1)]
+
+    def _unique(self, name, playlist_id=None):
+        clash = self.get(name)
+        if clash and clash["playlist_id"] != playlist_id:
+            raise ValueError(f"A playlist called {name!r} already exists.")
+
+    def create(self, name, description):
+        self._unique(name)
+        playlist_id = f"playlist-{len(self.playlists) + 1}"
+        self.playlists[playlist_id] = {"playlist_id": playlist_id, "name": name, "description": description,
+                                       "created_at": "test", "updated_at": "test"}
+        self.order[playlist_id] = []
+        return self.get(name)
+
+    def update(self, playlist_id, name, description):
+        self._unique(name, playlist_id)
+        self.playlists[playlist_id].update(name=name, description=description)
+
+    def delete(self, playlist_id):
+        self.playlists.pop(playlist_id, None)
+        self.order.pop(playlist_id, None)
+
+    def replace_tracks(self, playlist_id, track_ids):
+        self.order[playlist_id] = list(track_ids)
+
+
 class FakePublicURLRepository:
     """Provide an in-memory PublicURLRepository bound to the track rows."""
 

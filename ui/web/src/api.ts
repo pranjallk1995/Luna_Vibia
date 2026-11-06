@@ -165,3 +165,72 @@ export function useTrackActions(section: Section) {
 }
 
 export type TrackActions = ReturnType<typeof useTrackActions>;
+
+// Saved playlists
+
+export type PlaylistSummary = {
+  name: string;
+  description: string;
+  track_count: number;
+  duration_seconds: number;
+  updated_at: string;
+};
+
+export type PlaylistTrack = {
+  position: number;
+  name: string;
+  title?: string | null;
+  artist?: string | null;
+  duration_seconds?: number | null;
+  cover_url?: string | null;
+  tags?: string[] | null;
+};
+
+export type Playlist = PlaylistSummary & { tracks: PlaylistTrack[] };
+
+const playlistPath = (name: string) => `/api/playlists/${segment(name)}`;
+
+export function usePlaylists() {
+  return useQuery({
+    queryKey: ["playlists"],
+    queryFn: () => request<{ playlists: PlaylistSummary[] }>("/api/playlists"),
+    select: (answer) => answer.playlists,
+  });
+}
+
+export function usePlaylist(name: string | null) {
+  return useQuery({
+    queryKey: ["playlist", name],
+    queryFn: () => request<Playlist>(playlistPath(name!)),
+    enabled: name !== null,
+  });
+}
+
+/** Every change to playlists; each answers with the playlist as it now is. */
+export function usePlaylistActions() {
+  const client = useQueryClient();
+  const settle = (saved?: Playlist) => {
+    if (saved?.name) client.setQueryData(["playlist", saved.name], saved);
+    return client.invalidateQueries({ queryKey: ["playlists"] });
+  };
+  const change = <V,>(run: (variables: V) => Promise<Playlist>) =>
+    useMutation({ mutationFn: run, onSuccess: (saved: Playlist) => settle(saved) });
+
+  return {
+    create: change(({ name, tracks }: { name: string; tracks?: string[] }) => post<Playlist>("/api/playlists", { name, tracks })),
+    update: change(({ name, newName, description }: { name: string; newName?: string; description?: string }) =>
+      post<Playlist>(playlistPath(name), { new_name: newName, description }),
+    ),
+    add: change(({ name, tracks }: { name: string; tracks: string[] }) => post<Playlist>(`${playlistPath(name)}/add`, { tracks })),
+    removeTracks: change(({ name, tracks }: { name: string; tracks: string[] }) =>
+      post<Playlist>(`${playlistPath(name)}/remove`, { tracks }),
+    ),
+    move: change(({ name, track, position }: { name: string; track: string; position: number }) =>
+      post<Playlist>(`${playlistPath(name)}/move`, { track, position }),
+    ),
+    remove: useMutation({
+      mutationFn: (name: string) => remove(playlistPath(name)),
+      onSuccess: () => settle(),
+    }),
+  };
+}

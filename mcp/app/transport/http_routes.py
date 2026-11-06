@@ -111,6 +111,7 @@ class VibiaHTTPRoutes:
         self._register_tracks()
         self._register_favorites()
         self._register_playback()
+        self._register_playlists()
         self._register_downloads()
         self._register_uploads()
         self._register_hidden_tracks()
@@ -277,6 +278,60 @@ class VibiaHTTPRoutes:
 
         self.route("GET", "/api/playback", playback)
         self.route("GET", "/api/tracks/{name}/beats", beats)
+
+    def _register_playlists(self) -> None:
+        saved = self.service.saved_playlists
+
+        async def playlists(request: Request):
+            return await anyio.to_thread.run_sync(saved.list)
+
+        async def create(request: Request):
+            payload = await self.payload(request)
+            return await anyio.to_thread.run_sync(
+                saved.create, payload.get("name"), payload.get("description"), payload.get("tracks")
+            )
+
+        async def playlist(request: Request):
+            return await anyio.to_thread.run_sync(saved.get, self.name(request))
+
+        async def update(request: Request):
+            payload = await self.payload(request)
+            return await anyio.to_thread.run_sync(
+                saved.update, self.name(request), payload.get("new_name"), payload.get("description")
+            )
+
+        async def delete(request: Request):
+            return await anyio.to_thread.run_sync(saved.delete, self.name(request))
+
+        async def add(request: Request):
+            payload = await self.payload(request)
+            return await anyio.to_thread.run_sync(
+                saved.add_tracks, self.name(request), payload.get("tracks"), payload.get("position")
+            )
+
+        async def remove(request: Request):
+            payload = await self.payload(request)
+            return await anyio.to_thread.run_sync(saved.remove_tracks, self.name(request), payload.get("tracks"))
+
+        async def order(request: Request):
+            payload = await self.payload(request)
+            return await anyio.to_thread.run_sync(saved.reorder, self.name(request), payload.get("tracks"))
+
+        async def move(request: Request):
+            payload = await self.payload(request)
+            return await anyio.to_thread.run_sync(
+                saved.move, self.name(request), payload.get("track"), payload.get("position")
+            )
+
+        self.route("GET", "/api/playlists", playlists)
+        self.route("POST", "/api/playlists", create, 201)
+        self.route("GET", "/api/playlists/{name}", playlist)
+        self.route("POST", "/api/playlists/{name}", update)
+        self.route("DELETE", "/api/playlists/{name}", delete)
+        self.route("POST", "/api/playlists/{name}/add", add)
+        self.route("POST", "/api/playlists/{name}/remove", remove)
+        self.route("POST", "/api/playlists/{name}/order", order)
+        self.route("POST", "/api/playlists/{name}/move", move)
 
     def _register_hidden_tracks(self) -> None:
         hidden = self.service.hidden

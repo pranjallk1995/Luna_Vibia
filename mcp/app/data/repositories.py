@@ -383,6 +383,83 @@ class TrackRepository(Repository):
         return count, results
 
 
+class PlaylistRepository(Repository):
+    """Saved playlists and the order of their tracks."""
+
+    SUMMARY = """
+        SELECT p.playlist_id, p.name, p.description, p.created_at, p.updated_at,
+               count(t.track_id) FILTER (WHERE NOT t.hidden) AS track_count,
+               COALESCE(sum(t.duration_seconds) FILTER (WHERE NOT t.hidden), 0)::real AS duration_seconds
+        FROM playlists p
+        LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.playlist_id
+        LEFT JOIN track_metadata t ON t.track_id = pt.track_id
+    """
+
+    def list(self) -> list[Row]:
+        return self.fetch_all(f"{self.SUMMARY} GROUP BY p.playlist_id ORDER BY lower(p.name)")
+
+    def get(self, name: str) -> Row | None:
+        """The playlist called ``name``, whatever its case."""
+        return self.fetch_one(
+            f"{self.SUMMARY} WHERE lower(p.name) = lower(%s) GROUP BY p.playlist_id", (name,)
+        )
+
+    def entries(self, playlist_id: str) -> list[Row]:
+        """Every track in the playlist in order, hidden ones included and marked."""
+        return self.fetch_all(
+            f"""SELECT pt.position, {TrackRepository.COLUMNS}
+                FROM playlist_tracks pt JOIN track_metadata USING (track_id)
+                WHERE pt.playlist_id = %s::uuid ORDER BY pt.position""",
+            (playlist_id,),
+        )
+
+    def create(self, name: str, description: str) -> Row:
+        try:
+            with self.database.connect() as connection:
+                connection.execute(
+                    "INSERT INTO playlists (name, description) VALUES (%s, %s)", (name, description)
+                )
+        except psycopg.errors.UniqueViolation:
+            raise ValueError(f"A playlist called {name!r} already exists.") from None
+        return self.get(name)
+
+    def update(self, playlist_id: str, name: str, description: str) -> None:
+        try:
+            with self.database.connect() as connection:
+                connection.execute(
+                    """UPDATE playlists SET name = %s, description = %s, updated_at = now()
+                       WHERE playlist_id = %s::uuid""",
+                    (name, description, playlist_id),
+                )
+        except psycopg.errors.UniqueViolation:
+            raise ValueError(f"A playlist called {name!r} already exists.") from None
+
+    def delete(self, playlist_id: str) -> None:
+        with self.database.connect() as connection:
+            connection.execute("DELETE FROM playlists WHERE playlist_id = %s::uuid", (playlist_id,))
+
+    def replace_tracks(self, playlist_id: str, track_ids: list[str]) -> None:
+        """Make the playlist exactly ``track_ids`` in that order, in one transaction.
+
+        Tracks already in it keep when they were added.
+        """
+        with self.database.connect() as connection:
+            connection.execute(
+                "DELETE FROM playlist_tracks WHERE playlist_id = %s::uuid AND track_id <> ALL(%s::uuid[])",
+                (playlist_id, track_ids),
+            )
+            connection.execute(
+                """INSERT INTO playlist_tracks (playlist_id, track_id, position)
+                   SELECT %s::uuid, entry.track_id, entry.position
+                   FROM unnest(%s::uuid[]) WITH ORDINALITY AS entry (track_id, position)
+                   ON CONFLICT (playlist_id, track_id) DO UPDATE SET position = EXCLUDED.position""",
+                (playlist_id, track_ids),
+            )
+            connection.execute(
+                "UPDATE playlists SET updated_at = now() WHERE playlist_id = %s::uuid", (playlist_id,)
+            )
+
+
 class PublicURLRepository(Repository):
     """The mutable public origin and every track URL derived from it."""
 

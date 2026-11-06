@@ -20,6 +20,7 @@ from starlette.testclient import TestClient
 from fakes import (
     FakeCaptioner,
     FakeEncoder,
+    FakePlaylistRepository,
     FakePublicURLRepository,
     FakeSpeakerPlayer,
     FakeTrackRepository,
@@ -82,6 +83,7 @@ class ServerTestCase(unittest.TestCase):
             FakeCaptioner(),
             FakeEncoder(),
             FakeVisia(),
+            playlist_repository=FakePlaylistRepository(self.repository),
         )
         self.branding = ServerBranding()
         # Match production: a non-localhost bind leaves DNS-rebinding checks off for TestClient.
@@ -1063,6 +1065,142 @@ class PlaybackToolTests(ServerTestCase):
         output["id"] = ""
         with patch("httpx.request", return_value=Response()):
             self.assertIsNone(helper.current())
+
+class PlaylistToolTests(ServerTestCase):
+    """Saved playlists: made, changed, and played through the MCP tools and the UI's routes."""
+
+    LOUNGE = Speaker("alsa_output.lounge", "Lounge Speaker", True)
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.service.visible.ingest("three.wav", wav_payload(400))
+        self.service.visible.ingest("four.wav", wav_payload(450))
+
+    def make(self, name="Evening", tracks=("one.wav", "two.wav", "three.wav")):
+        return self.call("create_playlist", {"name": name, "description": "Wind down", "tracks": list(tracks)})
+
+    def order(self, name="Evening"):
+        return [track["name"] for track in self.call("get_playlist", {"name": name})["tracks"]]
+
+    def test_create_and_read_a_playlist_in_order(self) -> None:
+        made = self.make()
+        self.assertEqual((made["status"], made["track_count"]), ("created", 3))
+        playlist = self.call("get_playlist", {"name": "evening"})
+        self.assertEqual([track["position"] for track in playlist["tracks"]], [1, 2, 3])
+        self.assertEqual(self.order(), ["one.wav", "two.wav", "three.wav"])
+        self.assertIn("public_url", playlist["tracks"][0])
+        listed = self.call("list_playlists", {})
+        self.assertEqual((listed["count"], listed["playlists"][0]["name"]), (1, "Evening"))
+        self.assertGreater(listed["playlists"][0]["duration_seconds"], 0)
+
+    def test_names_are_unique_whatever_their_case_and_checked(self) -> None:
+        self.make()
+        for name in ("EVENING", "  ", "a/b", "x" * 101):
+            with self.subTest(name=name):
+                with self.assertRaises(ToolError):
+                    self.call("create_playlist", {"name": name})
+
+    def test_unknown_or_hidden_tracks_change_nothing(self) -> None:
+        self.make()
+        self.repository.rows["four.wav"]["hidden"] = True
+        for tracks in (["nope.wav"], ["four.wav"], ["three.wav", "nope.wav"]):
+            with self.subTest(tracks=tracks):
+                with self.assertRaisesRegex(ToolError, "Not in the visible library"):
+                    self.call("add_tracks_to_playlist", {"name": "Evening", "tracks": tracks})
+        self.assertEqual(self.order(), ["one.wav", "two.wav", "three.wav"])
+
+    def test_add_at_a_position_and_keep_ones_already_there(self) -> None:
+        self.make(tracks=("one.wav", "two.wav"))
+        result = self.call("add_tracks_to_playlist", {"name": "Evening", "tracks": ["four.wav", "one.wav"], "position": 2})
+        self.assertEqual((result["added"], result["already_there"]), (["four.wav"], ["one.wav"]))
+        self.assertEqual(self.order(), ["one.wav", "four.wav", "two.wav"])
+        self.call("add_tracks_to_playlist", {"name": "Evening", "tracks": ["three.wav"]})
+        self.assertEqual(self.order()[-1], "three.wav")
+        with self.assertRaises(ToolError):
+            self.call("add_tracks_to_playlist", {"name": "Evening", "tracks": ["three.wav"], "position": 0})
+
+    def test_remove_tracks_and_report_ones_not_in_it(self) -> None:
+        self.make()
+        result = self.call("remove_tracks_from_playlist", {"name": "Evening", "tracks": ["two.wav", "four.wav"]})
+        self.assertEqual((result["removed"], result["not_in_playlist"]), (["two.wav"], ["four.wav"]))
+        self.assertEqual(self.order(), ["one.wav", "three.wav"])
+        self.assertIn("two.wav", [row["name"] for row in self.service.visible.list()])
+
+    def test_reorder_needs_every_track_once(self) -> None:
+        self.make()
+        self.call("reorder_playlist", {"name": "Evening", "tracks": ["three.wav", "one.wav", "two.wav"]})
+        self.assertEqual(self.order(), ["three.wav", "one.wav", "two.wav"])
+        for tracks in (["three.wav", "one.wav"], ["three.wav", "one.wav", "one.wav"], ["three.wav", "one.wav", "four.wav"]):
+            with self.subTest(tracks=tracks):
+                with self.assertRaisesRegex(ToolError, "exactly once"):
+                    self.call("reorder_playlist", {"name": "Evening", "tracks": tracks})
+
+    def test_move_one_track(self) -> None:
+        self.make()
+        self.call("move_playlist_track", {"name": "Evening", "track": "three.wav", "position": 1})
+        self.assertEqual(self.order(), ["three.wav", "one.wav", "two.wav"])
+        self.call("move_playlist_track", {"name": "Evening", "track": "three.wav", "position": 99})
+        self.assertEqual(self.order(), ["one.wav", "two.wav", "three.wav"])
+        with self.assertRaisesRegex(ToolError, "not in this playlist"):
+            self.call("move_playlist_track", {"name": "Evening", "track": "four.wav", "position": 1})
+
+    def test_rename_describe_and_delete_keep_the_tracks(self) -> None:
+        self.make()
+        renamed = self.call("update_playlist", {"name": "Evening", "new_name": "Late night", "description": "Quiet"})
+        self.assertEqual((renamed["name"], renamed["description"], renamed["track_count"]), ("Late night", "Quiet", 3))
+        with self.assertRaises(ToolError):
+            self.call("get_playlist", {"name": "Evening"})
+        self.assertEqual(self.call("delete_playlist", {"name": "late night"})["status"], "deleted")
+        self.assertEqual(self.call("list_playlists", {})["count"], 0)
+        self.assertEqual(len(self.service.visible.list()), 4)
+
+    def test_hidden_tracks_drop_out_and_come_back_at_the_end(self) -> None:
+        self.make()
+        self.service.hidden.set_hidden(["one.wav"], True)
+        self.assertEqual(self.order(), ["two.wav", "three.wav"])
+        self.call("move_playlist_track", {"name": "Evening", "track": "three.wav", "position": 1})
+        self.service.hidden.set_hidden(["one.wav"], False)
+        self.assertEqual(self.order(), ["three.wav", "two.wav", "one.wav"])
+
+    def test_renamed_tracks_stay_and_deleted_ones_go(self) -> None:
+        self.make()
+        self.service.visible.rename("two.wav", "second.wav")
+        self.assertEqual(self.order(), ["one.wav", "second.wav", "three.wav"])
+        self.service.visible.remove("one.wav")
+        self.assertEqual(self.order(), ["second.wav", "three.wav"])
+
+    def test_play_in_order_or_shuffled_without_changing_it(self) -> None:
+        self.make(tracks=("one.wav", "two.wav", "three.wav", "four.wav"))
+        player = FakeSpeakerPlayer([self.LOUNGE])
+        self.service.playback.player = player
+        played = self.call("play_playlist", {"name": "Evening", "loop": True})
+        self.assertEqual((played["status"], played["order"], played["loop"]), ("playing", self.order(), True))
+        with patch("app.services.application.random.sample", side_effect=lambda names, count: list(reversed(names))):
+            shuffled = self.call("play_playlist", {"name": "Evening", "shuffle": True})
+        self.assertEqual(shuffled["order"], ["four.wav", "three.wav", "two.wav", "one.wav"])
+        self.assertEqual([name for name, _ in player.played[-1][0]], shuffled["order"])
+        self.assertEqual(self.order(), ["one.wav", "two.wav", "three.wav", "four.wav"])
+
+    def test_an_empty_playlist_does_not_play(self) -> None:
+        self.call("create_playlist", {"name": "Empty"})
+        with self.assertRaisesRegex(ToolError, "no tracks"):
+            self.call("play_playlist", {"name": "Empty"})
+
+    def test_the_ui_routes_change_the_same_playlists(self) -> None:
+        client = TestClient(self.server.streamable_http_app())
+        made = client.post("/api/playlists", json={"name": "Focus", "tracks": ["one.wav", "two.wav"]})
+        self.assertEqual(made.status_code, 201)
+        self.assertEqual(client.post("/api/playlists/Focus/add", json={"tracks": ["three.wav"], "position": 1}).json()["added"], ["three.wav"])
+        client.post("/api/playlists/Focus/move", json={"track": "three.wav", "position": 3})
+        client.post("/api/playlists/Focus/remove", json={"tracks": ["one.wav"]})
+        client.post("/api/playlists/Focus/order", json={"tracks": ["three.wav", "two.wav"]})
+        client.post("/api/playlists/Focus", json={"new_name": "Deep focus"})
+        playlist = client.get("/api/playlists/Deep%20focus").json()
+        self.assertEqual([track["name"] for track in playlist["tracks"]], ["three.wav", "two.wav"])
+        self.assertEqual(client.get("/api/playlists").json()["count"], 1)
+        self.assertEqual(client.get("/api/playlists/Missing").status_code, 400)
+        self.assertEqual(client.delete("/api/playlists/Deep%20focus").json()["status"], "deleted")
+
 
 class HTTPRouteTests(ServerTestCase):
     def test_health_route_reports_service_status(self) -> None:

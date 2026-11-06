@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import random
 import re
 import threading
 from collections import Counter
@@ -22,7 +23,7 @@ from app.services.inspection import TrackInspector
 from app.services.media import TrackPayloadDecoder
 from app.services.showcase import ShowcaseSorter
 from app.core.models import TrackAnalysis, TrackRecord, MetadataChange, MetadataRules
-from app.data.repositories import TrackRepository, PublicURLRepository, Row
+from app.data.repositories import PlaylistRepository, TrackRepository, PublicURLRepository, Row
 from app.data.storage import TrackStorage
 from app.services.uploads import UploadLinkStore
 from app.integrations.audio import AudioProbe, MusicFeatures
@@ -1058,6 +1059,218 @@ class PlaybackService:
         return {"name": name, "duration_seconds": row.get("duration_seconds"), **beat_map}
 
 
+class SavedPlaylistService:
+    """Playlists people save and come back to: named, ordered tracks from the visible library.
+
+    Tracks are named as in list_tracks. A hidden track drops out of every playlist
+    while hidden and comes back at the end when restored; a deleted one is gone.
+    Shuffling happens when a playlist plays: the saved order stays as it is.
+    """
+
+    MAX_TRACKS = 500
+    NAME_MAX_CHARS = 100
+    DESCRIPTION_MAX_CHARS = 1000
+    # What a playlist lists about each track.
+    TRACK_FIELDS = (
+        "name", "title", "artist", "caption", "tags", "favorite", "duration_seconds",
+        "tempo_bpm", "musical_key", "energy", "cover_url", "public_url",
+    )
+
+    def __init__(self, playlists: PlaylistRepository, tracks: TrackRepository, playback: PlaybackService) -> None:
+        self.playlists = playlists
+        self.tracks = tracks
+        self.playback = playback
+
+    # Checking what callers give
+
+    @classmethod
+    def clean_name(cls, value: Any) -> str:
+        name = value.strip() if isinstance(value, str) else ""
+        if not name:
+            raise ValueError("A playlist needs a name.")
+        if len(name) > cls.NAME_MAX_CHARS:
+            raise ValueError(f"A playlist name has at most {cls.NAME_MAX_CHARS} characters.")
+        if "/" in name or any(ord(character) < 32 for character in name):
+            raise ValueError("A playlist name cannot contain slashes or control characters.")
+        return name
+
+    @classmethod
+    def clean_description(cls, value: Any) -> str:
+        if value is None:
+            return ""
+        if not isinstance(value, str):
+            raise ValueError("description must be text.")
+        if len(value.strip()) > cls.DESCRIPTION_MAX_CHARS:
+            raise ValueError(f"A description has at most {cls.DESCRIPTION_MAX_CHARS} characters.")
+        return value.strip()
+
+    @staticmethod
+    def track_names(names: Any) -> list[str]:
+        if not isinstance(names, list) or any(not isinstance(name, str) for name in names):
+            raise ValueError("tracks must be a list of track names.")
+        return unique_names(names, "Name at least one track.")
+
+    def find(self, name: str) -> Row:
+        row = self.playlists.get(self.clean_name(name))
+        if row is None:
+            raise FileNotFoundError(f"There is no playlist called {name!r}. list_playlists shows them all.")
+        return row
+
+    def visible_rows(self, names: list[str]) -> list[Row]:
+        """The visible tracks called ``names``, in that order; unknown or hidden names fail together."""
+        rows = [self.tracks.get(name, hidden=False) for name in names]
+        missing = [name for name, row in zip(names, rows) if row is None]
+        if missing:
+            raise ValueError(
+                f"Not in the visible library: {', '.join(missing)}. Use exact names from "
+                "list_tracks or search_tracks; hidden tracks cannot join a playlist."
+            )
+        return rows
+
+    # Reading
+
+    @staticmethod
+    def summary(row: Row) -> Row:
+        return {
+            "name": row["name"],
+            "description": row["description"],
+            "track_count": row["track_count"],
+            "duration_seconds": round(row["duration_seconds"] or 0, 1),
+            "updated_at": row["updated_at"],
+        }
+
+    def split(self, playlist: Row) -> tuple[list[Row], list[str]]:
+        """The playlist's visible tracks in order, and the ids of its hidden ones."""
+        entries = self.playlists.entries(playlist["playlist_id"])
+        return [row for row in entries if not row["hidden"]], [row["track_id"] for row in entries if row["hidden"]]
+
+    def view(self, playlist: Row) -> Row:
+        visible, _ = self.split(playlist)
+        tracks = [
+            {"position": index, **{field: row.get(field) for field in self.TRACK_FIELDS}}
+            for index, row in enumerate(visible, start=1)
+        ]
+        return {**self.summary(playlist), "tracks": tracks}
+
+    def list(self) -> Row:
+        playlists = [self.summary(row) for row in self.playlists.list()]
+        return {"count": len(playlists), "playlists": playlists}
+
+    def get(self, name: str) -> Row:
+        return self.view(self.find(name))
+
+    # Changing
+
+    def save_order(self, playlist: Row, visible_ids: list[str], hidden_ids: list[str]) -> Row:
+        if len(visible_ids) + len(hidden_ids) > self.MAX_TRACKS:
+            raise ValueError(f"A playlist holds at most {self.MAX_TRACKS} tracks.")
+        self.playlists.replace_tracks(playlist["playlist_id"], visible_ids + hidden_ids)
+        return self.view(self.playlists.get(playlist["name"]))
+
+    def create(self, name: str, description: str | None = None, tracks: list[str] | None = None) -> Row:
+        clean = self.clean_name(name)
+        rows = self.visible_rows(self.track_names(tracks)) if tracks else []
+        if len(rows) > self.MAX_TRACKS:
+            raise ValueError(f"A playlist holds at most {self.MAX_TRACKS} tracks.")
+        playlist = self.playlists.create(clean, self.clean_description(description))
+        if rows:
+            return {"status": "created", **self.save_order(playlist, [row["track_id"] for row in rows], [])}
+        return {"status": "created", **self.view(playlist)}
+
+    def update(self, name: str, new_name: str | None = None, description: str | None = None) -> Row:
+        playlist = self.find(name)
+        if new_name is None and description is None:
+            raise ValueError("Give a new_name, a description, or both.")
+        renamed = self.clean_name(new_name) if new_name is not None else playlist["name"]
+        described = self.clean_description(description) if description is not None else playlist["description"]
+        self.playlists.update(playlist["playlist_id"], renamed, described)
+        return {"status": "updated", **self.view(self.playlists.get(renamed))}
+
+    def delete(self, name: str) -> Row:
+        playlist = self.find(name)
+        self.playlists.delete(playlist["playlist_id"])
+        return {"status": "deleted", "name": playlist["name"]}
+
+    def add_tracks(self, name: str, tracks: list[str], position: int | None = None) -> Row:
+        """Add tracks at ``position`` (1 = first) or at the end; ones already there stay put."""
+        playlist = self.find(name)
+        visible, hidden = self.split(playlist)
+        present = {row["name"] for row in visible}
+        rows = self.visible_rows(self.track_names(tracks))
+        hidden_present = set(hidden)
+        new = [row for row in rows if row["name"] not in present and row["track_id"] not in hidden_present]
+        ids = [row["track_id"] for row in visible]
+        if position is None:
+            at = len(ids)
+        elif isinstance(position, int) and not isinstance(position, bool) and position >= 1:
+            at = min(position - 1, len(ids))
+        else:
+            raise ValueError("position counts from 1 (the first track).")
+        ids[at:at] = [row["track_id"] for row in new]
+        result = self.save_order(playlist, ids, hidden)
+        return {
+            "status": "tracks_added",
+            "added": [row["name"] for row in new],
+            "already_there": [row["name"] for row in rows if row not in new],
+            **result,
+        }
+
+    def remove_tracks(self, name: str, tracks: list[str]) -> Row:
+        playlist = self.find(name)
+        visible, hidden = self.split(playlist)
+        names = set(self.track_names(tracks))
+        kept = [row for row in visible if row["name"] not in names]
+        removed = [row["name"] for row in visible if row["name"] in names]
+        result = self.save_order(playlist, [row["track_id"] for row in kept], hidden)
+        return {
+            "status": "tracks_removed",
+            "removed": removed,
+            "not_in_playlist": sorted(names - set(removed)),
+            **result,
+        }
+
+    def reorder(self, name: str, tracks: list[str]) -> Row:
+        """Put the playlist's tracks in the order of ``tracks``, which must name each one once."""
+        playlist = self.find(name)
+        visible, hidden = self.split(playlist)
+        order = self.track_names(tracks)
+        if len(order) != len(tracks) or set(order) != {row["name"] for row in visible}:
+            raise ValueError(
+                "tracks must name every track in the playlist exactly once; get_playlist lists them. "
+                "To move one track, use move_playlist_track."
+            )
+        by_name = {row["name"]: row["track_id"] for row in visible}
+        return {"status": "reordered", **self.save_order(playlist, [by_name[track] for track in order], hidden)}
+
+    def move(self, name: str, track: str, position: int) -> Row:
+        """Move one track to ``position`` (1 = first; past the end means last)."""
+        playlist = self.find(name)
+        visible, hidden = self.split(playlist)
+        if not isinstance(position, int) or isinstance(position, bool) or position < 1:
+            raise ValueError("position counts from 1 (the first track).")
+        names = [row["name"] for row in visible]
+        if track not in names:
+            raise ValueError(f"{track!r} is not in this playlist.")
+        ids = [row["track_id"] for row in visible]
+        moving = ids.pop(names.index(track))
+        ids.insert(min(position - 1, len(ids)), moving)
+        return {"status": "moved", **self.save_order(playlist, ids, hidden)}
+
+    # Playing
+
+    def play(self, name: str, shuffle: bool = False, loop: bool = False, speaker: str | None = None) -> Row:
+        """Play the playlist on the host's speakers, in its order or shuffled."""
+        playlist = self.find(name)
+        visible, _ = self.split(playlist)
+        if not visible:
+            raise ValueError(f"{playlist['name']!r} has no tracks to play.")
+        names = [row["name"] for row in visible]
+        if shuffle:
+            names = random.sample(names, len(names))
+        result = self.playback.play(names, speaker, loop)
+        return {**result, "playlist": playlist["name"], "shuffled": shuffle, "order": names}
+
+
 class VibiaService:
     """Facade grouping every Luna Vibia use case for the transport adapters."""
 
@@ -1073,6 +1286,7 @@ class VibiaService:
         uploads: UploadLinkService,
         playback: PlaybackService,
         showcase: ShowcaseSorter,
+        saved_playlists: SavedPlaylistService | None = None,
     ) -> None:
         self.visible = visible
         self.hidden = hidden
@@ -1084,6 +1298,7 @@ class VibiaService:
         self.uploads = uploads
         self.playback = playback
         self.showcase = showcase
+        self.saved_playlists = saved_playlists
 
     @classmethod
     def create(
@@ -1095,6 +1310,7 @@ class VibiaService:
         encoder: ClapEncoder,
         covers: VisiaImageCatalog,
         player: SpeakerPlayer | None = None,
+        playlist_repository: PlaylistRepository | None = None,
     ) -> "VibiaService":
         """Wire the use cases around the given persistence and analysis adapters."""
         rules = MetadataRules(config.max_tags, config.search_stop_words)
@@ -1117,6 +1333,10 @@ class VibiaService:
             showcase,
         )
         search = SearchService(tracks, rules, encoder, config.search_limit_max)
+        playback = PlaybackService(visible, player or SpeakerPlayer(), config.max_play_tracks)
+        saved = SavedPlaylistService(
+            playlist_repository or PlaylistRepository(getattr(tracks, "database", None)), tracks, playback
+        )
         return cls(
             visible=visible,
             hidden=HiddenTrackService(storage, tracks, rules, inspector, showcase),
@@ -1138,6 +1358,7 @@ class VibiaService:
             uploads=UploadLinkService(
                 visible, UploadLinkStore(config.upload_ttl_seconds), urls, config.max_track_bytes
             ),
-            playback=PlaybackService(visible, player or SpeakerPlayer(), config.max_play_tracks),
+            playback=playback,
             showcase=showcase,
+            saved_playlists=saved,
         )
