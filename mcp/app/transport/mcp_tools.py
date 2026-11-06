@@ -800,3 +800,16 @@ class VibiaMCPTools:
         def remove_track(name: str) -> dict[str, str]:
             """Remove a non-hidden track and its persisted metadata consistently."""
             return visible.remove(name)
+
+        @server.tool()
+        async def remove_tracks(names: list[str]) -> dict[str, Any]:
+            """Permanently remove up to 100 visible tracks and their metadata at once.
+
+            Use exact names from list_tracks, search_tracks, or list_track_metadata;
+            for example, to remove every track tagged "draft", page
+            search_tracks(tags=["draft"]) and pass the names here. Deletion cannot be
+            undone, so confirm the selection with the user first. Each removal is independent:
+            successes are listed under "removed" and per-track errors (such as a
+            missing or hidden name) under "failed".
+            """
+            return {"status": "deleted", **await offload(visible.remove_many, names)}

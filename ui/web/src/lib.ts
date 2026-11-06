@@ -1,3 +1,5 @@
+import type { TrackRecord, NamedMetadataChange } from "./api";
+
 /** Small helpers shared across the app. */
 
 /** The server's reason for a failure, or a fallback when there is none. */
@@ -102,4 +104,122 @@ export function storedName(fileName: string): string {
     byte.toString(16).padStart(2, "0"),
   ).join("");
   return `${prefix}_${fileName}`;
+}
+
+// Bulk selection
+
+/**
+ * The selection after clicking one track: a plain click toggles it, and a shift-click
+ * from `anchor` adds everything between the two, in the order on screen.
+ */
+export function clickedSelection(
+  selection: ReadonlySet<string>,
+  order: readonly string[],
+  name: string,
+  anchor: string | null,
+): Set<string> {
+  const next = new Set(selection);
+  const from = anchor === null ? -1 : order.indexOf(anchor);
+  const to = order.indexOf(name);
+  if (from < 0 || to < 0) {
+    if (!next.delete(name)) next.add(name);
+    return next;
+  }
+  order.slice(Math.min(from, to), Math.max(from, to) + 1).forEach((item) => next.add(item));
+  return next;
+}
+
+export type BatchFailure = { name: string; error: string };
+export type BatchOutcome = { done: number; failed: BatchFailure[] };
+
+/**
+ * Send items a batch at a time, collecting what each track could not do. A refused batch
+ * ends the run, because the rest would fail the same way. Rejects only when nothing at all
+ * succeeded, so a caller can stay open with the reason.
+ */
+export async function inBatches<T>(
+  items: readonly T[],
+  size: number,
+  nameOf: (item: T) => string,
+  send: (batch: T[]) => Promise<BatchFailure[]>,
+): Promise<BatchOutcome> {
+  const failed: BatchFailure[] = [];
+  for (let start = 0; start < items.length; start += size) {
+    try {
+      failed.push(...(await send(items.slice(start, start + size))));
+    } catch (failure) {
+      const error = messageOf(failure, "The request failed. Please try again.");
+      failed.push(...items.slice(start).map((item) => ({ name: nameOf(item), error })));
+      break;
+    }
+  }
+  if (failed.length && failed.length === items.length) throw new Error(failed[0].error);
+  return { done: items.length - failed.length, failed };
+}
+
+export const itemCount = (count: number) => `${count} ${count === 1 ? "track" : "tracks"}`;
+
+/** Names a selection before it is changed for good: its size and the first few tracks. */
+export function selectionLabel(names: readonly string[], shown = 3): string {
+  const readable = names.slice(0, shown).map(readableName).join(", ");
+  const rest = names.length - shown;
+  return `${itemCount(names.length)}: ${readable}${rest > 0 ? ` and ${rest} more` : ""}`;
+}
+
+/** The toast after a bulk action, such as "9 tracks deleted." with any failure's reason. */
+export function outcomeMessage({ done, failed }: BatchOutcome, action: string): string {
+  const summary = `${itemCount(done)} ${action}.`;
+  if (!failed.length) return summary;
+  return `${summary} ${itemCount(failed.length)} stayed selected: ${failed[0].error}`;
+}
+
+/** Every tag on these tracks with how many carry it, most common first. */
+export function tagCounts(records: readonly TrackRecord[]): { tag: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const record of records) {
+    for (const tag of visibleTags(record.tags)) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  }
+  return Array.from(counts, ([tag, count]) => ({ tag, count })).sort(
+    (a, b) => b.count - a.count || a.tag.localeCompare(b.tag),
+  );
+}
+
+export const parsedTags = (text: string) =>
+  Array.from(new Set(text.split(",").map(normalizedTag).filter(Boolean)));
+
+export type CaptionEdit =
+  | { mode: "keep" }
+  | { mode: "set"; text: string }
+  | { mode: "replace"; find: string; replacement: string };
+
+export type BulkEdit = { addTags: string[]; removeTags: string[]; caption: CaptionEdit };
+
+function editedCaption(current: string, edit: CaptionEdit): string {
+  if (edit.mode === "set") return edit.text.trim() || current;
+  if (edit.mode === "replace" && edit.find) {
+    const literal = edit.find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // A function, so "$1" in the replacement stays plain text.
+    return current.replace(new RegExp(literal, "gi"), () => edit.replacement);
+  }
+  return current;
+}
+
+/** What one bulk edit changes on each track, leaving out tracks it would not change at all. */
+export function bulkChanges(records: readonly TrackRecord[], edit: BulkEdit): NamedMetadataChange[] {
+  const changes: NamedMetadataChange[] = [];
+  for (const track of records) {
+    const tags = (track.tags ?? []).map(normalizedTag);
+    const removeTags = edit.removeTags.filter((tag) => tags.includes(normalizedTag(tag)));
+    const addTags = edit.addTags.filter((tag) => !tags.includes(tag) && !edit.removeTags.includes(tag));
+    const current = track.caption ?? "";
+    const text = editedCaption(current, edit.caption);
+    if (!addTags.length && !removeTags.length && text === current) continue;
+    changes.push({
+      name: track.name,
+      ...(addTags.length && { add_tags: addTags }),
+      ...(removeTags.length && { remove_tags: removeTags }),
+      ...(text !== current && { caption: text }),
+    });
+  }
+  return changes;
 }

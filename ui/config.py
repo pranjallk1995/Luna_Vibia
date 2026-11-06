@@ -42,6 +42,8 @@ class UIConfig:
     NAME_MAX_CHARS: ClassVar[int] = 200
     CAPTION_MAX_CHARS: ClassVar[int] = 500
     TRACKS_PER_PAGE: ClassVar[int] = 12
+    # A bulk action is sent in batches of this many tracks; the backend accepts up to 100.
+    BATCH_SIZE: ClassVar[int] = 100
     UPLOAD_TYPES: ClassVar[tuple[str, ...]] = ("mp3", "wav", "flac", "ogg", "opus", "m4a")
     AUDIO_TYPES: ClassVar[dict[str, str]] = {
         ".flac": "audio/flac",
@@ -52,6 +54,8 @@ class UIConfig:
         ".wav": "audio/wav",
     }
     API_TIMEOUT_SECONDS: ClassVar[float] = 30.0
+    # A batch touches up to BATCH_SIZE tracks' files and records.
+    BATCH_TIMEOUT_SECONDS: ClassVar[float] = 120.0
     # The playback line re-reads where sound goes; Windows can switch speakers on its own.
     PLAYBACK_REFRESH_SECONDS: ClassVar[int] = 10
     PLAYBACK_TIMEOUT_SECONDS: ClassVar[float] = 8.0

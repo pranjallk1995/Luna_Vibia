@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { post, remove, request } from "./http";
+import { inBatches, type BatchFailure } from "./lib";
 
 export type Section = "view" | "favorites" | "hidden";
 
@@ -25,6 +26,7 @@ export type TrackRecord = {
 
 export type Settings = {
   tracks_per_page: number;
+  batch_size: number;
   playback_refresh_seconds: number;
   max_tags: number;
   name_max_chars: number;
@@ -37,6 +39,8 @@ export type MetadataChange = {
   add_tags?: string[];
   remove_tags?: string[];
 };
+
+export type NamedMetadataChange = MetadataChange & { name: string };
 
 export type Speaker = { name: string; description: string };
 
@@ -91,7 +95,7 @@ export function useTracks(section: Section) {
 }
 
 /** Every change to one collection: applied on screen first, undone if the server refuses it. */
-export function useTrackActions(section: Section) {
+export function useTrackActions(section: Section, batchSize: number) {
   const collection = collectionOf(section);
   const client = useQueryClient();
   const key = ["tracks", collection];
@@ -99,8 +103,8 @@ export function useTrackActions(section: Section) {
 
   const refresh = () => client.invalidateQueries({ queryKey: ["tracks"] });
 
-  const change = <V,>(
-    run: (variables: V) => Promise<unknown>,
+  const change = <V, R>(
+    run: (variables: V) => Promise<R>,
     apply: (tracks: TrackRecord[], variables: V) => TrackRecord[],
   ) => ({
     mutationFn: run,
@@ -117,6 +121,52 @@ export function useTrackActions(section: Section) {
   });
 
   const without = (tracks: TrackRecord[], name: string) => tracks.filter((track) => track.name !== name);
+  const withoutAll = (tracks: TrackRecord[], names: string[]) => {
+    const leaving = new Set(names);
+    return tracks.filter((track) => !leaving.has(track.name));
+  };
+
+  const sameName = (name: string) => name;
+
+  /** Post names a batch at a time to a route that changes all of a batch or none of it. */
+  const postNames = (path: string, names: string[], extra?: object) =>
+    inBatches(names, batchSize, sameName, async (batch) => {
+      await post(path, { names: batch, ...extra });
+      return [];
+    });
+
+  const deleteNames = (names: string[]) =>
+    inBatches(names, batchSize, sameName, async (batch) => {
+      const path = collection === "hidden" ? "/api/hidden/delete" : "/api/tracks/delete";
+      return (await post<{ failed: BatchFailure[] }>(path, { names: batch })).failed;
+    });
+
+  const setFavorites = useMutation(
+    change(
+      ({ names, favorite }: { names: string[]; favorite: boolean }) => postNames("/api/favorites", names, { favorite }),
+      (tracks, { names, favorite }) => {
+        const changing = new Set(names);
+        return tracks.map((track) => (changing.has(track.name) ? { ...track, favorite } : track));
+      },
+    ),
+  );
+
+  const removeMany = useMutation(change(deleteNames, withoutAll));
+
+  const hideMany = useMutation(change((names: string[]) => postNames("/api/hidden/hide", names), withoutAll));
+
+  const restoreMany = useMutation(change((names: string[]) => postNames("/api/hidden/restore", names), withoutAll));
+
+  const updateMetadataMany = useMutation({
+    mutationFn: (changes: NamedMetadataChange[]) =>
+      inBatches(
+        changes,
+        batchSize,
+        (item) => item.name,
+        async (batch) => (await post<{ failed: BatchFailure[] }>(`${metadataPrefix}/metadata`, { changes: batch })).failed,
+      ),
+    onSettled: refresh,
+  });
 
   const setFavorite = useMutation(
     change(
@@ -127,8 +177,8 @@ export function useTrackActions(section: Section) {
 
   const removeTrack = useMutation(
     change(
-      (name: string) =>
-        collection === "hidden" ? post("/api/hidden/delete", { names: [name] }) : remove(`/api/tracks/${segment(name)}`),
+      (name: string): Promise<unknown> =>
+        collection === "hidden" ? deleteNames([name]) : remove(`/api/tracks/${segment(name)}`),
       without,
     ),
   );
@@ -161,7 +211,16 @@ export function useTrackActions(section: Section) {
     onSuccess: (saved, { name }) => merge(name, { cover_url: saved.cover_url }),
   });
 
-  return { setFavorite, remove: removeTrack, hide, restore, rename, updateMetadata, setCover };
+  return {
+    setFavorite,
+    remove: removeTrack,
+    hide, restore, rename, updateMetadata, setCover,
+    setFavorites,
+    removeMany,
+    hideMany,
+    restoreMany,
+    updateMetadataMany,
+  };
 }
 
 export type TrackActions = ReturnType<typeof useTrackActions>;

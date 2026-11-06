@@ -75,6 +75,26 @@ class VibiaHTTPRoutes:
             remove_tags=payload.get("remove_tags"),
         )
 
+    @classmethod
+    async def metadata_changes(cls, request: Request) -> list[tuple[str, MetadataChange]]:
+        """Parse ``{"changes": [{"name", "caption", "add_tags", "remove_tags"}, ...]}``."""
+        changes = (await cls.payload(request)).get("changes")
+        if not isinstance(changes, list) or not all(
+            isinstance(change, dict) and isinstance(change.get("name"), str) for change in changes
+        ):
+            raise ValueError("changes must be a list of objects that each have a name.")
+        return [
+            (
+                change["name"],
+                MetadataChange(
+                    caption=change.get("caption"),
+                    add_tags=change.get("add_tags"),
+                    remove_tags=change.get("remove_tags"),
+                ),
+            )
+            for change in changes
+        ]
+
     @staticmethod
     def name(request: Request) -> str:
         return request.path_params["name"]
@@ -190,9 +210,19 @@ class VibiaHTTPRoutes:
                 **visible.update_metadata(self.name(request), change),
             }
 
+        async def delete_many(request: Request):
+            names = (await self.payload(request)).get("names", [])
+            return await anyio.to_thread.run_sync(visible.remove_many, names)
+
+        async def update_metadata_many(request: Request):
+            changes = await self.metadata_changes(request)
+            return await anyio.to_thread.run_sync(visible.update_metadata_many, changes)
+
         self.route("GET", "/api/metadata", metadata)
         self.route("GET", "/api/public/tracks/{name}", public_track)
         self.route("POST", "/api/tracks", upload, 201)
+        self.route("POST", "/api/tracks/delete", delete_many)
+        self.route("POST", "/api/tracks/metadata", update_metadata_many)
         self.route("DELETE", "/api/tracks/{name}", delete)
         self.route("POST", "/api/tracks/{name}/rename", rename)
         self.route("POST", "/api/tracks/{name}/metadata", update_metadata)
@@ -346,16 +376,25 @@ class VibiaHTTPRoutes:
                 **hidden.update_metadata(self.name(request), change),
             }
 
+        async def update_metadata_many(request: Request):
+            changes = await self.metadata_changes(request)
+            return await anyio.to_thread.run_sync(hidden.update_metadata_many, changes)
+
+        # Off the event loop: a long selection means many file and database touches.
         async def hide(request: Request):
-            return hidden.set_hidden((await self.payload(request)).get("names", []), True)
+            names = (await self.payload(request)).get("names", [])
+            return await anyio.to_thread.run_sync(hidden.set_hidden, names, True)
 
         async def restore(request: Request):
-            return hidden.set_hidden((await self.payload(request)).get("names", []), False)
+            names = (await self.payload(request)).get("names", [])
+            return await anyio.to_thread.run_sync(hidden.set_hidden, names, False)
 
         async def delete(request: Request):
-            return hidden.remove_many((await self.payload(request)).get("names", []))
+            names = (await self.payload(request)).get("names", [])
+            return await anyio.to_thread.run_sync(hidden.remove_many, names)
 
         self.route("GET", "/api/hidden/tracks", tracks, protected=True)
+        self.route("POST", "/api/hidden/tracks/metadata", update_metadata_many, protected=True)
         self.route(
             "POST", "/api/hidden/tracks/{name}/metadata", update_metadata, protected=True
         )

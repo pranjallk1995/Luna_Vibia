@@ -1,4 +1,4 @@
-import { Download, Eye, EyeOff, Heart, MoreVertical, Trash2 } from "lucide-react";
+import { Check, Download, Eye, EyeOff, Heart, MoreVertical, Trash2 } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 
 import { coverUrl, downloadUrl, type TrackRecord, type Section } from "../api";
@@ -13,6 +13,10 @@ type Props = {
   section: Section;
   layout: "grid" | "list";
   onAction: (action: CardAction, track: TrackRecord) => void;
+  /** Whether clicking the card selects it, rather than opening it. */
+  selecting: boolean;
+  selected: boolean;
+  onSelect: (track: TrackRecord, extend: boolean) => void;
 };
 
 function CardMenu({ track, section, onAction }: Pick<Props, "track" | "section" | "onAction">) {
@@ -81,7 +85,7 @@ function CardMenu({ track, section, onAction }: Pick<Props, "track" | "section" 
   );
 }
 
-function TrackCardBase({ track, section, layout, onAction }: Props) {
+function TrackCardBase({ track, section, layout, onAction, selecting, selected, onSelect }: Props) {
   const name = readableName(track.name);
   const tags = visibleTags(track.tags);
   const hiddenTags = tags.length - TAGS_SHOWN[layout];
@@ -90,13 +94,26 @@ function TrackCardBase({ track, section, layout, onAction }: Props) {
     track.tempo_bpm ? `${Math.round(track.tempo_bpm)} BPM` : null,
     sizeLabel(track.size_bytes),
   ].filter(Boolean);
+  const stateClass = `${selecting ? " lv-card-selecting" : ""}${selected ? " lv-card-selected" : ""}`;
   return (
-    <article className={`lv-card lv-card-${layout}`}>
+    // The whole card is the target while selecting; its button gives keyboards the same click.
+    <article
+      className={`lv-card lv-card-${layout}${stateClass}`}
+      onClick={selecting ? (event) => onSelect(track, event.shiftKey) : undefined}
+    >
       <div className="lv-thumbnail">
-        <button className="lv-thumbnail-open" type="button" aria-label={`Open ${name}`} onClick={() => onAction("open", track)}>
+        <button
+          className="lv-thumbnail-open"
+          type="button"
+          role={selecting ? "checkbox" : undefined}
+          aria-checked={selecting ? selected : undefined}
+          aria-label={selecting ? `Select ${name}` : `Open ${name}`}
+          onClick={selecting ? undefined : () => onAction("open", track)}
+        >
           <img src={coverUrl(track, "card")} alt="" width={420} height={280} loading="lazy" decoding="async" />
         </button>
-        {section !== "hidden" && (
+        {selecting && <span className="lv-check">{selected && <Check size={15} strokeWidth={3} />}</span>}
+        {!selecting && section !== "hidden" && (
           <button
             className={`lv-favorite${track.favorite ? " lv-favorite-active" : ""}`}
             type="button"
@@ -128,7 +145,7 @@ function TrackCardBase({ track, section, layout, onAction }: Props) {
           <p className="lv-card-facts">
             {facts.join(" · ")}
           </p>
-          <CardMenu track={track} section={section} onAction={onAction} />
+          {!selecting && <CardMenu track={track} section={section} onAction={onAction} />}
         </div>
       </div>
     </article>

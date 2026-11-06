@@ -407,8 +407,20 @@ class HiddenAndFavoriteTests(VibiaServiceTestCase):
         self.hidden.set_hidden(["song.wav"], True)
         self.assertEqual(self.hidden.remove("song.wav")["status"], "deleted")
         self.assertFalse((self.root / "song.wav").exists())
-        with self.assertRaisesRegex(PermissionError, "Only hidden tracks"):
-            self.hidden.remove_many(["public.wav"])
+        refused = self.hidden.remove_many(["public.wav", "missing.wav"])
+        self.assertEqual(refused["removed_count"], 0)
+        self.assertIn("Only hidden tracks", refused["failed"][0]["error"])
+        self.assertEqual([item["name"] for item in refused["failed"]], ["public.wav", "missing.wav"])
+        self.assertTrue((self.root / "public.wav").is_file())
+
+    def test_batches_stay_inside_their_collection(self):
+        self.visible.ingest("song.wav", wav_payload())
+        self.visible.ingest("public.wav", wav_payload(523))
+        self.hidden.set_hidden(["song.wav"], True)
+        removed = self.visible.remove_many(["song.wav", "public.wav"])
+        self.assertEqual((removed["removed"], [item["name"] for item in removed["failed"]]), (["public.wav"], ["song.wav"]))
+        updated = self.hidden.update_metadata_many([("song.wav", MetadataChange(add_tags=["private"]))])
+        self.assertIn("private", updated["updated"][0]["tags"])
 
     def test_favorites_are_persisted_and_hidden_tracks_are_excluded(self):
         self.visible.ingest("song.wav", wav_payload())

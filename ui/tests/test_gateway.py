@@ -214,6 +214,24 @@ class ApplicationTests(GatewayTestCase):
 
 
 
+
+class BulkProxyTests(GatewayTestCase):
+    def test_bulk_routes_are_forwarded_with_a_batch_timeout(self):
+        self.sign_in()
+        self.unlock()
+        for path in ("/api/tracks/delete", "/api/tracks/metadata", "/api/hidden/tracks/metadata", "/api/hidden/hide", "/api/favorites"):
+            self.assertEqual(self.client.post(path, json={}).status_code, 200, path)
+            self.assertEqual(self.backend_requests[-1].url.path, path)
+            self.assertEqual(self.backend_requests[-1].extensions["timeout"]["read"], UIConfig.BATCH_TIMEOUT_SECONDS)
+
+    def test_hidden_batch_edits_wait_for_the_pin(self):
+        self.sign_in()
+        self.assertEqual(self.client.post("/api/hidden/tracks/metadata", json={}).status_code, 423)
+
+    def test_the_browser_learns_the_batch_size(self):
+        self.sign_in()
+        self.assertEqual(self.client.get("/auth/session").json()["settings"]["batch_size"], UIConfig.BATCH_SIZE)
+
 class HiddenPinTests(GatewayTestCase):
     """Hidden tracks wait for the PIN that Luna Sentia checks."""
 

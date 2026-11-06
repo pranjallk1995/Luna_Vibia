@@ -1474,3 +1474,219 @@ html:has(.lv-viewer[open]) {
     display: none;
   }
 }
+
+/* Bulk selection (ported from Luna Visia). */
+.lv-gallery-tools {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.lv-gallery-tools .lv-search {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+
+/* Selecting: the whole card is the target, and state shows as a ring and a checkmark. */
+.lv-card-selecting {
+  cursor: pointer;
+  user-select: none;
+}
+
+.lv-card-selecting .lv-thumbnail-open {
+  cursor: pointer;
+}
+
+.lv-check {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 1px solid var(--lv-strong);
+  border-radius: 0.4rem;
+  background: rgba(17, 17, 17, 0.78);
+  pointer-events: none;
+}
+
+.lv-card-selected .lv-check {
+  border-color: var(--lv-accent);
+  background: var(--lv-accent);
+  color: var(--lv-bg);
+}
+
+.lv-card-selected .lv-thumbnail,
+.lv-card-selected .lv-thumbnail:hover {
+  box-shadow: 0 0 0 2px var(--lv-accent);
+}
+
+/* Pinned to the window and lined up with the page, however short the page is. */
+.lv-bulk {
+  position: fixed;
+  right: max(1rem, calc((100% - 1148px) / 2));
+  bottom: 1rem;
+  left: max(1rem, calc((100% - 1148px) / 2));
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem;
+  border: 1px solid var(--lv-strong);
+  border-radius: 0.9rem;
+  background: #1c1c1c;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+/* Room below the pager, so the bar never covers the end of the page. */
+.lv-page:has(.lv-bulk) {
+  padding-bottom: 8rem;
+}
+
+.lv-bulk-selection,
+.lv-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.lv-bulk-count {
+  padding-inline: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.lv-bulk-count small {
+  color: var(--lv-muted);
+  font-size: var(--luna-text-small);
+}
+
+.lv-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.lv-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.lv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.lv-field > span {
+  color: var(--lv-muted);
+  font-size: var(--luna-text-small);
+}
+
+.lv-form .lv-alert,
+.lv-form .lv-caption {
+  margin: 0;
+}
+
+.lv-bulk-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  max-height: 9rem;
+  padding: 0.1rem;
+  overflow-y: auto;
+}
+
+.lv-bulk-tags .lv-tag {
+  cursor: pointer;
+}
+
+/* Struck through as well as colored, so a removal never relies on color alone. */
+.lv-tag-removing {
+  border-color: rgba(251, 113, 133, 0.6);
+  background: rgba(225, 29, 72, 0.3);
+  color: #fecdd3;
+  text-decoration: line-through;
+}
+
+
+/* Toasts clear the bulk bar, so its buttons stay usable straight after an action. */
+html:has(.lv-bulk) .lv-toasts {
+  bottom: 8rem;
+}
+
+
+@media (min-width: 1760px) {
+
+  .lv-bulk {
+    right: max(1rem, calc((100% - 1688px) / 2));
+    left: max(1rem, calc((100% - 1688px) / 2));
+  }
+}
+
+@media (max-width: 700px) {
+  html:has(.lv-bulk) .lv-toasts {
+    bottom: 10.5rem;
+  }
+
+  .lv-page:has(.lv-bulk) {
+    padding-bottom: 10.5rem;
+  }
+
+  .lv-bulk {
+    right: 16px;
+    left: 16px;
+    padding: 0.4rem;
+  }
+
+  .lv-bulk-selection {
+    width: 100%;
+    gap: 0.25rem;
+  }
+
+  .lv-bulk-count {
+    flex: 1 1 auto;
+    padding-inline: 0.3rem;
+    font-size: var(--luna-text-subtitle);
+  }
+
+  .lv-bulk-selection .lv-button {
+    min-height: 2.25rem;
+    padding-inline: 0.5rem;
+    font-size: var(--luna-text-subtitle);
+  }
+
+  .lv-bulk-actions {
+    width: 100%;
+    gap: 0.25rem;
+    flex-wrap: nowrap;
+  }
+
+  .lv-bulk-actions .lv-button {
+    flex: 1;
+    padding-inline: 0.5rem;
+  }
+
+  .lv-select-toggle {
+    padding-inline: 0.65rem;
+  }
+
+  /* Room for icons here; the labels stay readable by screen readers. */
+  .lv-bulk-actions .lv-button span,
+  .lv-select-toggle span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+}

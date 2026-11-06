@@ -1,8 +1,28 @@
-import { EyeOff, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { CheckSquare, EyeOff, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { coverUrl, useTrackActions, useTracks, type TrackRecord, type Section, type Settings } from "../api";
-import { displayName, matching, messageOf, pageCount, pageOf } from "../lib";
+import {
+  coverUrl,
+  useTrackActions,
+  useTracks,
+  type TrackRecord,
+  type NamedMetadataChange,
+  type Section,
+  type Settings,
+} from "../api";
+import {
+  clickedSelection,
+  displayName,
+  matching,
+  messageOf,
+  outcomeMessage,
+  pageCount,
+  pageOf,
+  selectionLabel,
+  type BatchOutcome,
+} from "../lib";
+import { BulkBar, type BulkAction } from "./BulkBar";
+import { BulkEditDialog } from "./BulkEditDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { TrackCard, type CardAction } from "./TrackCard";
 import { Pager } from "./Pager";
@@ -18,6 +38,9 @@ const COPY: Record<Section, { label: string; noMatch: string }> = {
 
 type Pending = { kind: "delete" | "hide"; track: TrackRecord } | null;
 
+// Kept from when the prompt opened: the selection empties on screen once the change starts.
+type BulkPending = { kind: "delete" | "hide"; names: string[]; subject: string } | { kind: "edit" } | null;
+
 type Props = {
   section: Section;
   layout: "grid" | "list";
@@ -26,14 +49,22 @@ type Props = {
 
 export function Gallery({ section, layout, settings }: Props) {
   const { data, isPending, error } = useTracks(section);
-  const actions = useTrackActions(section);
+  const actions = useTrackActions(section, settings.batch_size);
   const toast = useToast();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
   const [openName, setOpenName] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
+  const [bulkPending, setBulkPending] = useState<BulkPending>(null);
 
-  const filtered = useMemo(() => matching(section === "favorites" ? (data ?? []).filter((track) => track.favorite) : (data ?? []), query), [data, section, query]);
+  const inThisSection = useMemo(() => section === "favorites" ? (data ?? []).filter((track) => track.favorite) : (data ?? []), [data, section]);
+  const filtered = useMemo(() => matching(inThisSection, query), [inThisSection, query]);
+  // Read from the section's tracks, so anything deleted or moved away drops out by itself.
+  const selected = useMemo(() => inThisSection.filter((track) => selection.has(track.name)), [inThisSection, selection]);
+  const selectedNames = useMemo(() => selected.map((track) => track.name), [selected]);
+  const outside = selected.length - filtered.filter((track) => selection.has(track.name)).length;
   const count = pageCount(filtered.length, settings.tracks_per_page);
   const current = Math.min(page, count - 1);
   const tracks = pageOf(filtered, current, settings.tracks_per_page);
@@ -65,6 +96,54 @@ export function Gallery({ section, layout, settings }: Props) {
     [setFavorite.mutate, restore.mutate, toast],
   );
 
+  // Refs keep onSelect stable, so selecting one card does not re-render the others.
+  const order = useRef<string[]>([]);
+  order.current = filtered.map((track) => track.name);
+  const anchor = useRef<string | null>(null);
+
+  const onSelect = useCallback((track: TrackRecord, extend: boolean) => {
+    const from = extend ? anchor.current : null;
+    anchor.current = track.name;
+    setSelection((current) => clickedSelection(current, order.current, track.name, from));
+  }, []);
+
+  const toggleSelecting = () => {
+    setSelecting((current) => !current);
+    setSelection(new Set());
+    anchor.current = null;
+  };
+
+  /** Say how a bulk action went, leaving only the tracks it could not change selected. */
+  const report = (outcome: BatchOutcome, action: string) => {
+    toast(outcomeMessage(outcome, action));
+    if (outcome.failed.length) setSelection(new Set(outcome.failed.map((failure) => failure.name)));
+  };
+
+  const setFavorites = (favorite: boolean) => {
+    const names = selected.filter((track) => Boolean(track.favorite) !== favorite).map((track) => track.name);
+    actions.setFavorites
+      .mutateAsync({ names, favorite })
+      .then((outcome) => report(outcome, favorite ? "added to Favorites" : "removed from Favorites"))
+      .catch((failure) => toast(messageOf(failure, "Could not update Favorite status.")));
+  };
+
+  const onBulkAction = (action: BulkAction) => {
+    if (action === "favorite" || action === "unfavorite") return setFavorites(action === "favorite");
+    if (action === "restore") {
+      return void actions.restoreMany
+        .mutateAsync(selectedNames)
+        .then((outcome) => report(outcome, "restored"))
+        .catch((failure) => toast(messageOf(failure, "Could not restore the tracks.")));
+    }
+    if (action === "edit") return setBulkPending({ kind: "edit" });
+    // A destructive prompt names what the search is not showing, so nothing goes unnoticed.
+    const subject = `${selectionLabel(selectedNames)}${outside > 0 ? ` (${outside} outside this search)` : ""}`;
+    setBulkPending({ kind: action, names: selectedNames, subject });
+  };
+
+  const editSelected = async (changes: NamedMetadataChange[]) =>
+    report(await actions.updateMetadataMany.mutateAsync(changes), "updated");
+
   const changeQuery = (value: string) => {
     setQuery(value);
     setPage(0);
@@ -84,7 +163,19 @@ export function Gallery({ section, layout, settings }: Props) {
 
   return (
     <>
-      <SearchBox label={COPY[section].label} value={query} count={data ? filtered.length : undefined} onChange={changeQuery} />
+      <div className="lv-gallery-tools">
+        <SearchBox label={COPY[section].label} value={query} count={data ? filtered.length : undefined} onChange={changeQuery} />
+        <button
+          className={`lv-button lv-select-toggle${selecting ? " lv-button-active" : ""}`}
+          type="button"
+          aria-pressed={selecting}
+          disabled={!selecting && !filtered.length}
+          onClick={toggleSelecting}
+        >
+          {selecting ? <X size={17} /> : <CheckSquare size={17} />}
+          <span>{selecting ? "Done" : "Select"}</span>
+        </button>
+      </div>
       {error && <p className="lv-alert lv-alert-error">{error.message}</p>}
       {isPending && <div className="lv-skeleton-grid" aria-label="Loading tracks" />}
       {data && !filtered.length && (
@@ -94,11 +185,31 @@ export function Gallery({ section, layout, settings }: Props) {
         <>
           <div className={`lv-gallery lv-gallery-${layout}`} key={`${section}-${current}`}>
             {tracks.map((track) => (
-              <TrackCard key={track.name} track={track} section={section} layout={layout} onAction={onAction} />
+              <TrackCard
+                key={track.name}
+                track={track}
+                section={section}
+                layout={layout}
+                onAction={onAction}
+                selecting={selecting}
+                selected={selection.has(track.name)}
+                onSelect={onSelect}
+              />
             ))}
           </div>
           <Pager page={current} count={count} onChange={changePage} />
         </>
+      )}
+      {selecting && (
+        <BulkBar
+          section={section}
+          selected={selected}
+          outside={outside}
+          matching={filtered.length}
+          onSelectAll={() => setSelection((current) => new Set([...current, ...order.current]))}
+          onClear={() => setSelection(new Set())}
+          onAction={onBulkAction}
+        />
       )}
       {openIndex >= 0 && (
         <PreviewDialog
@@ -135,6 +246,31 @@ export function Gallery({ section, layout, settings }: Props) {
           run={() => actions.hide.mutateAsync(pending.track.name)}
           onClose={() => setPending(null)}
         />
+      )}
+      {bulkPending?.kind === "delete" && (
+        <ConfirmDialog
+          title="Delete tracks?"
+          message="Permanently delete"
+          subject={bulkPending.subject}
+          action="Delete"
+          icon={Trash2}
+          run={async () => report(await actions.removeMany.mutateAsync(bulkPending.names), "deleted")}
+          onClose={() => setBulkPending(null)}
+        />
+      )}
+      {bulkPending?.kind === "hide" && (
+        <ConfirmDialog
+          title="Hide tracks?"
+          message="Move to Hidden Tracks:"
+          subject={bulkPending.subject}
+          action="Hide"
+          icon={EyeOff}
+          run={async () => report(await actions.hideMany.mutateAsync(bulkPending.names), "hidden")}
+          onClose={() => setBulkPending(null)}
+        />
+      )}
+      {bulkPending?.kind === "edit" && (
+        <BulkEditDialog tracks={selected} settings={settings} run={editSelected} onClose={() => setBulkPending(null)} />
       )}
     </>
   );

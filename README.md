@@ -7,7 +7,7 @@
 ![PostgreSQL in Luna Sentia](https://img.shields.io/badge/PostgreSQL-in_Luna_Sentia-4169E1?logo=postgresql&logoColor=white)
 ![CLAP included](https://img.shields.io/badge/CLAP-included-FFD21E?logo=huggingface&logoColor=black)
 ![NVIDIA GPU optional](https://img.shields.io/badge/NVIDIA_GPU-optional-76B900?logo=nvidia&logoColor=white)
-![Status: v1.2](https://img.shields.io/badge/Status-v1.2-2EA043)
+![Status: v1.3](https://img.shields.io/badge/Status-v1.3-2EA043)
 
 <p align="center">
   <a href="docs/assets/luna-vibia-showcase.mp4"><img src="docs/assets/luna-vibia-showcase.webp" alt="From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia, then asking a chat assistant for a playlist through its MCP tools" width="900"></a>
@@ -113,6 +113,17 @@ drops those well below the best one, then picks tracks one at a time by how well
 fit minus how much they sound like the tracks already picked, until the requested
 length is filled. With too little fitting music it returns a shorter playlist and says
 to loop it. Nothing is saved until it is passed to `create_playlist`.
+
+## Selecting many tracks
+
+**Select** in the web UI picks many tracks across pages and searches: click, shift-click
+a range, or **Select all**. A bar then favorites, unfavorites, hides, restores, or deletes
+them together, or edits them together: add and remove tags, find and replace text in
+descriptions, or give them all one description. Tracks that could not be changed are
+reported and stay selected. These requests send at most 100 tracks each to
+`POST /api/tracks/delete`, `/api/tracks/metadata`, `/api/hidden/delete`, and
+`/api/hidden/tracks/metadata`, each track applied on its own, with per-track errors under
+`failed`.
 
 ## Playlists
 
@@ -305,7 +316,7 @@ only report. After changing `host/`, run `systemctl --user restart luna-vibia-sp
 - `set_track_cover` - set the cover to a Luna Visia image, or to the audio placeholder when none fits.
 - `update_track_cover` - store generated or attached cover art in Luna Visia and set it as the cover in one call.
 - `update_track_metadata` / `update_tracks_metadata` - edit captions and tags.
-- `rename_track` / `rename_tracks`, `set_favorite_tracks`, `remove_track`.
+- `rename_track` / `rename_tracks`, `set_favorite_tracks`, `remove_track` / `remove_tracks` (up to 100 at once, each reported on its own).
 
 ### Metadata and library
 

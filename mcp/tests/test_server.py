@@ -1202,6 +1202,58 @@ class PlaylistToolTests(ServerTestCase):
         self.assertEqual(client.delete("/api/playlists/Deep%20focus").json()["status"], "deleted")
 
 
+class BulkRouteTests(ServerTestCase):
+    """The web UI's Select mode: many tracks changed or deleted in one request."""
+
+    def test_batch_metadata_reports_each_track(self) -> None:
+        with self.client() as client:
+            response = client.post("/api/tracks/metadata", json={"changes": [
+                {"name": "one.wav", "add_tags": ["focus"], "caption": "A corrected caption"},
+                {"name": "missing.wav", "add_tags": ["focus"]},
+            ]})
+        body = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(body["updated"][0]["caption"], "A corrected caption")
+        self.assertIn("focus", body["updated"][0]["tags"])
+        self.assertEqual(body["failed"][0]["name"], "missing.wav")
+
+    def test_batch_metadata_rejects_a_malformed_body(self) -> None:
+        with self.client() as client:
+            for changes in (None, "one.wav", [{"caption": "No name"}], ["one.wav"]):
+                with self.subTest(changes=changes):
+                    self.assertEqual(client.post("/api/tracks/metadata", json={"changes": changes}).status_code, 400)
+
+    def test_batch_delete_removes_files_and_reports_the_rest(self) -> None:
+        with self.client() as client:
+            response = client.post("/api/tracks/delete", json={"names": ["one.wav", "missing.wav"]})
+        self.assertEqual(response.json()["removed"], ["one.wav"])
+        self.assertEqual(response.json()["failed"][0]["name"], "missing.wav")
+        self.assertFalse((self.root / "one.wav").exists())
+
+    def test_batches_refuse_more_than_a_hundred(self) -> None:
+        with self.client() as client:
+            response = client.post("/api/tracks/delete", json={"names": [f"{i}.wav" for i in range(101)]})
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue((self.root / "one.wav").is_file())
+
+    def test_hidden_batches_need_the_private_token(self) -> None:
+        headers = {"Authorization": f"Bearer {'x' * 32}"}
+        body = {"changes": [{"name": "one.wav", "add_tags": ["private"]}]}
+        with self.client() as client:
+            self.assertEqual(client.post("/api/hidden/tracks/metadata", json=body).status_code, 401)
+            client.post("/api/hidden/hide", json={"names": ["one.wav"]}, headers=headers)
+            updated = client.post("/api/hidden/tracks/metadata", json=body, headers=headers)
+            deleted = client.post("/api/hidden/delete", json={"names": ["one.wav", "two.wav"]}, headers=headers)
+        self.assertEqual(updated.json()["updated_count"], 1)
+        self.assertEqual(deleted.json()["removed"], ["one.wav"])
+        self.assertEqual(deleted.json()["failed"][0]["name"], "two.wav")
+
+    def test_remove_tracks_tool(self) -> None:
+        result = self.call("remove_tracks", {"names": ["one.wav", "missing.wav"]})
+        self.assertEqual((result["status"], result["removed"]), ("deleted", ["one.wav"]))
+        self.assertEqual(result["failed"][0]["name"], "missing.wav")
+
+
 class HTTPRouteTests(ServerTestCase):
     def test_health_route_reports_service_status(self) -> None:
         with self.client() as client:

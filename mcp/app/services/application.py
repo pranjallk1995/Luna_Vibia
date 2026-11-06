@@ -274,6 +274,45 @@ class TrackCollectionService:
             self.tracks.delete(name)
         return {"status": "deleted", "removed_name": name}
 
+    def _apply_batch(
+        self, items: list[tuple[str, Callable[[], Row]]], result_key: str
+    ) -> dict[str, Any]:
+        """Apply each change on its own, reporting failures instead of stopping."""
+        if not items:
+            raise ValueError("Provide at least one track change.")
+        if len(items) > AppConfig.BATCH_MAX_TRACKS:
+            raise ValueError(f"Change at most {AppConfig.BATCH_MAX_TRACKS} tracks at a time.")
+        succeeded, failed = [], []
+        for name, apply in items:
+            try:
+                succeeded.append(apply())
+            except (FileNotFoundError, FileExistsError, PermissionError, ValueError) as error:
+                failed.append({"name": name, "error": str(error)})
+        return {
+            f"{result_key}_count": len(succeeded),
+            "failed_count": len(failed),
+            result_key: succeeded,
+            "failed": failed,
+        }
+
+    def update_metadata_many(self, changes: list[tuple[str, MetadataChange]]) -> dict[str, Any]:
+        """Edit captions and tags of many tracks in this collection in one call."""
+        return self._apply_batch(
+            [
+                (name, lambda name=name, change=change: summarize(self.update_metadata(name, change)))
+                for name, change in changes
+            ],
+            "updated",
+        )
+
+    def remove_many(self, names: list[str]) -> dict[str, Any]:
+        """Delete many tracks in this collection, reporting each failure instead of stopping."""
+        clean_names = unique_names(names, "Provide at least one track name.")
+        return self._apply_batch(
+            [(name, lambda name=name: self.remove(name)["removed_name"]) for name in clean_names],
+            "removed",
+        )
+
 
 class VisibleTrackService(TrackCollectionService):
     """The public library: ingest, rename, favorites, and public delivery."""
@@ -510,37 +549,6 @@ class VisibleTrackService(TrackCollectionService):
         if unavailable:
             result["unavailable"] = unavailable
         return result
-
-    def _apply_batch(
-        self, items: list[tuple[str, Callable[[], Row]]], result_key: str
-    ) -> dict[str, Any]:
-        """Apply each change on its own, reporting failures instead of stopping."""
-        if not items:
-            raise ValueError("Provide at least one track change.")
-        if len(items) > AppConfig.BATCH_MAX_TRACKS:
-            raise ValueError(f"Change at most {AppConfig.BATCH_MAX_TRACKS} tracks at a time.")
-        succeeded, failed = [], []
-        for name, apply in items:
-            try:
-                succeeded.append(apply())
-            except (FileNotFoundError, FileExistsError, PermissionError, ValueError) as error:
-                failed.append({"name": name, "error": str(error)})
-        return {
-            f"{result_key}_count": len(succeeded),
-            "failed_count": len(failed),
-            result_key: succeeded,
-            "failed": failed,
-        }
-
-    def update_metadata_many(self, changes: list[tuple[str, MetadataChange]]) -> dict[str, Any]:
-        """Edit captions and tags of many visible tracks in one call."""
-        return self._apply_batch(
-            [
-                (name, lambda name=name, change=change: summarize(self.update_metadata(name, change)))
-                for name, change in changes
-            ],
-            "updated",
-        )
 
     def rename_many(self, renames: list[tuple[str, str]]) -> dict[str, Any]:
         """Rename many visible tracks in order, so chained renames work."""
@@ -813,12 +821,6 @@ class HiddenTrackService(TrackCollectionService):
             "names": changed,
             "count": len(changed),
         }
-
-    def remove_many(self, names: list[str]) -> dict[str, Any]:
-        clean_names = unique_names(names, "Select at least one hidden track.")
-        for name in clean_names:
-            self.remove(name)
-        return {"status": "deleted", "count": len(clean_names)}
 
 
 class SearchService:

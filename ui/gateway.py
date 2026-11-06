@@ -37,7 +37,9 @@ PROXIED_ROUTES = tuple(
         ("DELETE", rf"/api/tracks/{NAME}"),
         ("POST", rf"/api/tracks/{NAME}/(rename|metadata|cover)"),
         ("POST", r"/api/favorites"),
+        ("POST", r"/api/tracks/(delete|metadata)"),
         ("POST", r"/api/hidden/(hide|restore|delete)"),
+        ("POST", r"/api/hidden/tracks/metadata"),
         ("POST", rf"/api/hidden/tracks/{NAME}/metadata"),
         ("GET", r"/api/playlists"),
         ("POST", r"/api/playlists"),
@@ -50,6 +52,8 @@ PROXIED_ROUTES = tuple(
 # Changes to hidden items, which wait for the PIN. Hiding a visible item does not.
 HIDDEN_CHANGES = re.compile(r"/api/hidden/(?!hide\Z).+")
 SENTIA_AWAY = "Luna Sentia, which checks your PIN, is unavailable. Please try again."
+# Routes that touch a whole batch, so they get longer than one item's change.
+BATCH_ROUTES = re.compile(r"/api/(favorites|tracks/(delete|metadata)|hidden/(hide|restore|delete|tracks/metadata))")
 UNAVAILABLE = "Luna Vibia's backend is unavailable. Please try again."
 
 
@@ -143,6 +147,7 @@ class UIGateway:
                 "logout_url": logout_url,
                 "settings": {
                     "tracks_per_page": UIConfig.TRACKS_PER_PAGE,
+                    "batch_size": UIConfig.BATCH_SIZE,
                     "playback_refresh_seconds": UIConfig.PLAYBACK_REFRESH_SECONDS,
                     "max_tags": UIConfig.MAX_TAGS,
                     "name_max_chars": UIConfig.NAME_MAX_CHARS,
@@ -282,6 +287,8 @@ class UIGateway:
     def timeout(path: str, uploading: bool) -> float:
         if uploading:
             return UIConfig.UPLOAD_TIMEOUT_SECONDS
+        if BATCH_ROUTES.fullmatch(path):
+            return UIConfig.BATCH_TIMEOUT_SECONDS
         return UIConfig.PLAYBACK_TIMEOUT_SECONDS if path == "/api/playback" else UIConfig.API_TIMEOUT_SECONDS
 
     async def proxy(self, request: Request) -> Response:
