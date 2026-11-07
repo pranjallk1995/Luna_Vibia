@@ -370,11 +370,22 @@ class FakeVisia(VisiaImageCatalog):
 
     VISIBLE_ID = "11111111-2222-3333-4444-555555555555"
     HIDDEN_ID = "99999999-8888-7777-6666-555555555555"
+    FOOD_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
     def __init__(self, placeholder_image_id: str = "", store_error: Exception | None = None) -> None:
         super().__init__("http://visia.test", placeholder_image_id)
         self.stored: list[tuple[str, list[str], dict]] = []
         self.store_error = store_error
+        self.tags: dict[str, list[str]] = {self.FOOD_ID: ["food", "luna vita"]}
+        self.tag_calls: list[tuple[list[str], list[str]]] = []
+
+    def tag(self, image_ids, tags):
+        """Pretend Visia tagged the images."""
+        self.tag_calls.append((image_ids, tags))
+        for image_id in image_ids:
+            current = self.tags.setdefault(image_id, [])
+            current.extend(tag for tag in tags if tag not in current)
+        return {"tagged_count": len(image_ids), "failed": []}
 
     def store(self, name, tags, source):
         """Pretend Visia stored the image as the visible one."""
@@ -388,10 +399,10 @@ class FakeVisia(VisiaImageCatalog):
 
     def images(self):
         return [
-            {"image_id": self.VISIBLE_ID, "hidden": False,
-             "public_url": f"https://visia.example.test/api/public/images/{self.VISIBLE_ID}"},
-            {"image_id": self.HIDDEN_ID, "hidden": True,
-             "public_url": f"https://visia.example.test/api/public/images/{self.HIDDEN_ID}"},
+            {"image_id": image_id, "hidden": hidden, "name": f"{image_id[:4]}.png",
+             "tags": list(self.tags.get(image_id, [])),
+             "public_url": f"https://visia.example.test/api/public/images/{image_id}"}
+            for image_id, hidden in ((self.VISIBLE_ID, False), (self.HIDDEN_ID, True), (self.FOOD_ID, False))
         ]
 
 

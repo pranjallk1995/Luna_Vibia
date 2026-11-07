@@ -31,9 +31,14 @@ class VisiaImageCatalog:
         re.IGNORECASE,
     )
     SEARCH_HINT = (
-        "Search Luna Visia for an image that suits the track and pass the public_url it "
-        "returns; if none fits, omit cover_url to use the Luna Vibia audio placeholder."
+        "Generate cover art showing the track's title and pass it to update_track_cover, "
+        "or pass the public_url of a Luna Visia image that already shows it; to use the "
+        "Luna Vibia audio placeholder instead, omit cover_url."
     )
+    # Every Visia image Vibia uses carries these, so Visia shows which images are covers.
+    APP_TAGS = ("luna vibia", "cover art")
+    # Luna Vita's food images: they never show a track's title, and Vita must not share covers.
+    FOREIGN_TAG = "luna vita"
 
     def __init__(
         self,
@@ -129,8 +134,52 @@ class VisiaImageCatalog:
             ) from error
 
     def resolve(self, cover_url: str) -> str:
-        """Return Visia's canonical public URL for the image ``cover_url`` names."""
-        return self.resolve_id(self.image_id(cover_url))
+        """Return Visia's canonical public URL for the image ``cover_url`` names, tagging it as a cover."""
+        return self.claim(self.find(self.image_id(cover_url)))
+
+    def claim(self, image: dict) -> str:
+        """Tag a visible Visia image as one of Vibia's covers and return its public URL.
+
+        Images Luna Vita uses are refused: food photos never carry a track's title,
+        and Vita must never show a cover. Tagging fails loudly, so no cover is set
+        on an image Visia does not mark as used by Vibia.
+        """
+        tags = image.get("tags") or []
+        if self.FOREIGN_TAG in tags:
+            raise ValueError(
+                f"Luna Visia image {image.get('name') or image.get('image_id')!r} is a Luna Vita food "
+                f"image, so it cannot be a cover. {self.SEARCH_HINT}"
+            )
+        if not all(tag in tags for tag in self.APP_TAGS):
+            self.tag([str(image["image_id"])], list(self.APP_TAGS))
+        return image["public_url"]
+
+    def tag(self, image_ids: list[str], tags: list[str]) -> dict[str, Any]:
+        """Add ``tags`` to Visia images by ID; raise unless every image was tagged."""
+        if not self.companion_token:
+            raise VisiaUnavailableError(
+                "Tagging covers in Luna Visia is off: set LUNAVISIA_COMPANION_TOKEN to the "
+                "same value in Luna Vibia and Luna Visia."
+            )
+        try:
+            response = httpx.post(
+                f"{self.api_url}/api/companion/images/tags",
+                json={"image_ids": image_ids, "tags": tags},
+                headers={"Authorization": f"Bearer {self.companion_token}", tenancy.USER_HEADER: tenancy.current()},
+                timeout=self.timeout,
+            )
+        except httpx.TransportError as error:
+            raise VisiaUnavailableError(f"Luna Visia could not tag the cover: {error}") from error
+        if response.status_code == 401:
+            raise VisiaUnavailableError(
+                "Luna Visia rejected Luna Vibia's LUNAVISIA_COMPANION_TOKEN; set the same value in both apps."
+            )
+        if response.status_code >= 400:
+            raise VisiaUnavailableError(f"Luna Visia could not tag the cover: {self.error_detail(response)}")
+        result = response.json()
+        if result.get("failed"):
+            raise ValueError(f"Luna Visia could not tag the cover: {result['failed'][0].get('error')}")
+        return result
 
     def placeholder_url(self) -> str | None:
         """The public URL of the audio placeholder in Visia, or None while none is configured."""
@@ -138,15 +187,25 @@ class VisiaImageCatalog:
             return None
         try:
             with tenancy.acting_as(tenancy.OWNER):  # One shared image, kept in the owner's gallery.
-                return self.resolve_id(self.placeholder_image_id)
+                return self.claim(self.find(self.placeholder_image_id))
         except FileNotFoundError as error:
             raise FileNotFoundError(
                 f"The Luna Vibia audio placeholder ({self.placeholder_image_id}) is missing from "
                 "Luna Visia; restore it or set LUNAVIBIA_PLACEHOLDER_COVER_ID."
             ) from error
 
-    def resolve_id(self, image_id: str) -> str:
+    def find(self, image_id: str) -> dict:
+        """The visible Visia image with this ID, with its name, tags, and public URL."""
         for image in self.images():
             if str(image.get("image_id", "")).lower() == image_id and not image.get("hidden"):
-                return image["public_url"]
+                return image
         raise FileNotFoundError(f"No visible Luna Visia image has ID {image_id}. {self.SEARCH_HINT}")
+
+    def is_placeholder(self, cover_url: str | None) -> bool:
+        """Whether ``cover_url`` is the audio placeholder, without asking Visia."""
+        if not cover_url or not self.placeholder_image_id:
+            return False
+        try:
+            return self.image_id(cover_url) == self.placeholder_image_id
+        except ValueError:
+            return False

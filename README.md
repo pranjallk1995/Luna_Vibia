@@ -7,7 +7,7 @@
 ![PostgreSQL in Luna Sentia](https://img.shields.io/badge/PostgreSQL-in_Luna_Sentia-4169E1?logo=postgresql&logoColor=white)
 ![CLAP included](https://img.shields.io/badge/CLAP-included-FFD21E?logo=huggingface&logoColor=black)
 ![NVIDIA GPU optional](https://img.shields.io/badge/NVIDIA_GPU-optional-76B900?logo=nvidia&logoColor=white)
-![Status: v1.4](https://img.shields.io/badge/Status-v1.4-2EA043)
+![Status: v1.5](https://img.shields.io/badge/Status-v1.5-2EA043)
 
 <p align="center">
   <a href="docs/assets/luna-vibia-showcase.mp4"><img src="docs/assets/luna-vibia-showcase.webp" alt="From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia, then asking a chat assistant for a playlist through its MCP tools" width="900"></a>
@@ -175,14 +175,16 @@ Art the model already has can go in the upload itself, as `cover_file`, `cover_u
 
 Models copy a music link by retyping it, which can garble a long signed link. Vibia rejects a Google Storage link whose signature is malformed before downloading it, and when a host refuses a link, the error tells the model to copy it again rather than generate the music again. Signed links are left out of errors and logs, which name each tool called and any failed upload.
 
-To generate cover art, ask in chat (for example "make a cover for Midnight_Cafe"). A model that can generate images creates one and passes it to `update_track_cover`. Luna Vibia sends it to Luna Visia, which stores, captions, and tags it (`cover art`, `luna vibia`, the track's name), then sets Visia's stable public URL as the cover. If Visia cannot store the image, the cover stays as it was. A retried call with the same image returns the stored copy instead of a duplicate. Uploads without a cover get a `cover_hint` that asks for generated art. Storing covers needs `LUNAVISIA_COMPANION_TOKEN`, set to the same value here and in Luna Visia.
+To generate cover art, ask in chat (for example "make a cover for Midnight_Cafe"). A model that can generate images creates one, with the song's title written clearly on it, and passes it to `update_track_cover`. Every cover shows its song's title: the server's instructions, the tool descriptions, and the `cover_hint` (which names the title) all ask for it. Luna Vibia sends it to Luna Visia, which stores, captions, and tags it (`cover art`, `luna vibia`, the track's name), then sets Visia's stable public URL as the cover. If Visia cannot store the image, the cover stays as it was. A retried call with the same image returns the stored copy instead of a duplicate. Uploads without a cover get a `cover_hint` that asks for generated art. Storing covers needs `LUNAVISIA_COMPANION_TOKEN`, set to the same value here and in Luna Visia.
 
 A track's cover is an image stored in Luna Visia. `set_track_cover` (or **Cover art**
 in a track's dialog) accepts only Visia's immutable image-ID URLs
 (`.../api/public/images/<image-id>`), checks that the image exists and is visible in
-Visia, and stores Visia's canonical public URL. The model always searches Visia for an image that suits
-the track before uploading and passes it to `upload_track` as `cover_url`; when none
-fits, it omits the URL and the track gets the Luna Vibia audio placeholder, an image stored in Visia itself (set its image ID
+Visia, tags it `luna vibia` and `cover art` there, and stores Visia's canonical public URL.
+Every Visia image Vibia uses, the placeholder included, carries those tags, so
+`search_images(tags=["luna vibia"])` in Visia lists every cover. An image Luna Vita uses
+(tagged `luna vita`) is refused, since food photos never show a track's title. A linked
+image must already show the track's title; when there is none, it omits the URL and the track gets the Luna Vibia audio placeholder, an image stored in Visia itself (set its image ID
 with `LUNAVIBIA_PLACEHOLDER_COVER_ID`; while that is blank the cover stays empty). The UI
 fetches covers from Visia over `luna_sentia_network`; tracks without one show a generated
 placeholder. Visia must be running for covers to be set or shown.
@@ -335,6 +337,8 @@ only report. After changing `host/`, run `systemctl --user restart luna-vibia-sp
 - `modify_track` - replace a track's audio; title, artist, notes, and cover are kept.
 - `set_track_cover` - set the cover to a Luna Visia image, or to the audio placeholder when none fits.
 - `update_track_cover` - store generated or attached cover art in Luna Visia and set it as the cover in one call.
+- `set_track_covers` - set up to 100 tracks' covers to Luna Visia images, or the placeholder, each entry reported under `updated` or `failed`.
+- `search_track_covers` - find tracks by cover kind (`art`, `placeholder`, `none`), by the Visia image they use, or by words in the name, title, or artist, with each track's title and a count per kind.
 - `update_track_metadata` / `update_tracks_metadata` - edit captions and tags.
 - `rename_track` / `rename_tracks`, `set_favorite_tracks`, `remove_track` / `remove_tracks` (up to 100 at once, each reported on its own).
 

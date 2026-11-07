@@ -241,6 +241,65 @@ class CoverTests(VibiaServiceTestCase):
             VisiaImageCatalog("http://visia.test").store("song_cover", [], {"content_base64": "AAAA"})
 
 
+class CoverTaggingTests(VibiaServiceTestCase):
+    URL = f"https://visia.example.test/api/public/images/{FakeVisia.VISIBLE_ID}"
+
+    def setUp(self):
+        super().setUp()
+        for name in ("song.wav", "other_song.wav"):
+            self.visible.ingest(name, wav_payload())
+
+    def test_linking_a_cover_tags_it_in_visia_once(self):
+        self.visible.set_cover("song.wav", self.URL)
+        self.visible.set_cover("other_song.wav", self.URL)
+        self.assertEqual(self.visible.covers.tag_calls, [([FakeVisia.VISIBLE_ID], ["luna vibia", "cover art"])])
+
+    def test_the_placeholder_is_tagged_too(self):
+        self.visible.covers = FakeVisia(FakeVisia.VISIBLE_ID)
+        self.visible.set_cover("song.wav", None, placeholder=True)
+        self.assertIn("luna vibia", self.visible.covers.tags[FakeVisia.VISIBLE_ID])
+
+    def test_vita_food_images_cannot_be_covers(self):
+        food = f"https://visia.example.test/api/public/images/{FakeVisia.FOOD_ID}"
+        with self.assertRaisesRegex(ValueError, "Luna Vita food image"):
+            self.visible.set_cover("song.wav", food)
+        self.assertIsNone(self.repository.rows["song.wav"]["cover_url"])
+
+    def test_bulk_covers_apply_each_entry_on_its_own(self):
+        food = f"https://visia.example.test/api/public/images/{FakeVisia.FOOD_ID}"
+        result = self.visible.set_covers([("song.wav", self.URL), ("other_song.wav", food), ("gone.wav", self.URL)])
+        self.assertEqual((result["updated_count"], result["failed_count"]), (1, 2))
+        self.assertEqual(result["updated"][0]["cover"], "art")
+        self.assertEqual(result["updated"][0]["title"], "song")
+
+    def test_search_covers_by_kind_image_and_words(self):
+        self.visible.covers = FakeVisia("00000000-0000-0000-0000-000000000001")
+        self.visible.set_cover("song.wav", self.URL)
+        self.repository.rows["other_song.wav"]["cover_url"] = (
+            "https://visia.example.test/api/public/images/00000000-0000-0000-0000-000000000001"
+        )
+        art = self.visible.search_covers("art")
+        self.assertEqual([track["name"] for track in art["tracks"]], ["song.wav"])
+        self.assertEqual(art["cover_counts"], {"art": 1})
+        placeholder = self.visible.search_covers("placeholder", query="OTHER")
+        self.assertEqual([track["name"] for track in placeholder["tracks"]], ["other_song.wav"])
+        by_image = self.visible.search_covers(image_url=self.URL)
+        self.assertEqual(by_image["count"], 1)
+        with self.assertRaisesRegex(ValueError, "cover must be one of"):
+            self.visible.search_covers("blank")
+
+    def test_cover_hint_names_the_title_to_write(self):
+        result = self.visible.upload_with_cover("night_drive.wav", wav_bytes(300, 2), {"title": "Night Drive"}, None)
+        self.assertIn("'Night Drive'", result["cover_hint"])
+        self.assertNotIn("no text", result["cover_hint"])
+
+    def test_tagging_needs_the_companion_token(self):
+        from app.integrations.visia import VisiaUnavailableError
+
+        with self.assertRaisesRegex(VisiaUnavailableError, "LUNAVISIA_COMPANION_TOKEN"):
+            VisiaImageCatalog("http://visia.test").tag([FakeVisia.VISIBLE_ID], ["luna vibia"])
+
+
 class SearchAndPlaylistTests(VibiaServiceTestCase):
     def setUp(self):
         super().setUp()

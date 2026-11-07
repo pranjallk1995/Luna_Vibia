@@ -28,8 +28,9 @@ SERVER_INSTRUCTIONS = (
     "for Vibia, call upload_track straight away, before generating anything else: pass "
     "the audio as file or track_url, copying a link exactly, character by character. "
     "Once it is saved, tell the user, then generate its cover art: landscape with a 3:2 "
-    "aspect ratio (4.5 x 3, e.g. 1536x1024), fitting its mood, genre, and title, with no "
-    "text. Pass the art to update_track_cover, which stores it in Luna Visia and sets it "
+    "aspect ratio (4.5 x 3, e.g. 1536x1024), fitting its mood and genre, with the song's "
+    "title written clearly and spelled exactly on it; every cover shows its song's title. "
+    "Pass the art to update_track_cover, which stores it in Luna Visia and sets it "
     "as the cover. If your turn ends before the cover is set, finish it with "
     "update_track_cover on the user's next message, without uploading the track again. "
     "Art you already have can go in the upload itself, as cover_file, cover_url, or "
@@ -125,6 +126,31 @@ MetadataUpdates = Annotated[
                 "required": ["name"],
             },
             "description": "One entry per track: its exact name and the changes to apply.",
+        }
+    ),
+]
+
+class CoverRequest(BaseModel):
+    """One track's cover within a batch."""
+
+    name: str
+    cover_url: str | None = None
+
+
+CoverRequests = Annotated[
+    list[CoverRequest],
+    WithJsonSchema(
+        {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}, "cover_url": {"type": "string"}},
+                "required": ["name"],
+            },
+            "description": (
+                "One entry per track: its exact name and a Luna Visia public_url, "
+                "or no cover_url for the audio placeholder."
+            ),
         }
     ),
 ]
@@ -607,15 +633,17 @@ class VibiaMCPTools:
             track_url exactly, character by character. Then follow the result's
             cover_hint: generate the art and pass it to update_track_cover.
 
-            Art you already have can go in this same call, as cover_file (an image
-            file), cover_url (a public HTTPS image URL or image data URL), or
-            cover_content_base64. The art is stored in Luna Visia, tagged "cover
-            art", and set as the track's cover.
+            Every cover shows the song's title, written clearly and spelled
+            exactly. Art you already have can go in this same call, as cover_file
+            (an image file), cover_url (a public HTTPS image URL or image data
+            URL), or cover_content_base64. The art is stored in Luna Visia, tagged
+            "cover art" and "luna vibia", and set as the track's cover.
 
-            For a track you did not generate, you may instead search Luna Visia for
-            cover art and pass the public_url it returns as cover_url (an immutable
-            .../api/public/images/<image-id> URL); it is checked against Visia and
-            the upload is rejected if it is not found. Without any cover the track
+            A Luna Visia public_url as cover_url (an immutable
+            .../api/public/images/<image-id> URL) links that image instead; use it
+            only for an image that already shows this track's title. It is checked
+            against Visia, tagged "luna vibia", and rejected if it is missing or a
+            Luna Vita food image. Without any cover the track
             gets the Luna Vibia audio placeholder and the result has a cover_hint:
             follow it straight away with update_track_cover.
 
@@ -684,13 +712,15 @@ class VibiaMCPTools:
         async def set_track_cover(name: str, cover_url: str | None = None) -> dict[str, Any]:
             """Set a track's cover art to a Luna Visia image, or to the audio placeholder.
 
-            Always search Luna Visia first for an image that suits the track (its
-            mood, genre, or title), then pass the public_url Visia returns: an
-            immutable .../api/public/images/<image-id> URL. It is checked against
-            Luna Visia and rejected if the image is missing or hidden. If no image
-            fits, omit cover_url: the track then shows the Luna Vibia audio
-            placeholder stored in Visia. Never pass a filename-based URL or data URI.
-            To use cover art you generated, call update_track_cover instead.
+            Every cover shows its song's title, so link only a Visia image that
+            already shows this track's title (search_images(tags=["luna vibia"])
+            lists the covers in Visia), passing its public_url: an immutable
+            .../api/public/images/<image-id> URL. It is checked against Luna Visia,
+            tagged "luna vibia" and "cover art" there, and rejected if the image is
+            missing, hidden, or a Luna Vita food image. Omit cover_url for the Luna
+            Vibia audio placeholder. Never pass a filename-based URL or data URI.
+            To use cover art you generated, call update_track_cover instead; for
+            many tracks at once, set_track_covers.
             """
             return {"status": "cover_updated", **await offload(visible.set_cover, name, cover_url, True)}
 
@@ -705,15 +735,17 @@ class VibiaMCPTools:
 
             Use this when the user asks to generate or change a track's cover, or
             when an upload returns a cover_hint. If you can generate images, first
-            create cover art that fits the track's mood, genre, or title (no text),
-            landscape with a 3:2 aspect ratio (4.5 x 3, e.g. 1536x1024), then pass
-            exactly one of:
+            create cover art that fits the track's mood and genre with the song's
+            title written clearly and spelled exactly on it (its stored title, else
+            its filename in words), landscape with a 3:2 aspect ratio (4.5 x 3,
+            e.g. 1536x1024), then pass exactly one of:
             - file: the image you generated or the user attached (ChatGPT supplies it).
             - image_url: a public HTTPS image URL, or an image data URL.
             - content_base64: Base64 image bytes; only practical for small images.
-            The image is captioned and tagged "cover art" in Visia; the cover only
-            changes once Visia has stored it, and retrying with the same image is
-            safe. A Luna Visia public_url as image_url is linked without storing.
+            The image is captioned and tagged "cover art" and "luna vibia" in Visia;
+            the cover only changes once Visia has stored it, and retrying with the
+            same image is safe. A Luna Visia public_url as image_url is linked
+            without storing, and refused if it is a Luna Vita food image.
             If passing a file fails, give it to Luna Visia's upload_image instead,
             then call this with the public_url it returns as image_url.
             """
@@ -727,6 +759,41 @@ class VibiaMCPTools:
             except Exception as error:
                 log_tool_failure("update_track_cover", name, source, error)
                 raise
+
+        @server.tool()
+        async def set_track_covers(covers: CoverRequests) -> dict[str, Any]:
+            """Set the covers of up to 100 tracks at once to Luna Visia images or the placeholder.
+
+            The same rules as set_track_cover apply to each entry: a cover_url
+            must be a Luna Visia public_url of an image showing that track's
+            title, and it is tagged "luna vibia" there; no cover_url sets the
+            audio placeholder. Each entry is independent: successes are listed
+            under "updated" and per-track errors under "failed". Find the tracks
+            to change with search_track_covers.
+            """
+            pairs = [(cover.name, cover.cover_url) for cover in covers]
+            return {"status": "covers_updated", **await offload(visible.set_covers, pairs)}
+
+        @server.tool()
+        def search_track_covers(
+            cover: Literal["any", "art", "placeholder", "none"] = "any",
+            image_url: str | None = None,
+            query: str = "",
+            limit: int = 50,
+            offset: int = 0,
+        ) -> dict[str, Any]:
+            """Find tracks by their cover art, to review or fix covers in bulk.
+
+            - cover: "art" (a real cover), "placeholder" (the audio placeholder,
+              still needing art), "none", or "any".
+            - image_url: a Luna Visia public_url; lists the tracks using that image.
+            - query: words that must all appear in the name, title, or artist.
+            Each result has the track's name, the title its cover should show,
+            artist, cover_url, and cover kind; cover_counts counts every match by
+            kind. Follow next_offset for more. Then generate art showing each
+            title for update_track_cover, or relink many with set_track_covers.
+            """
+            return visible.search_covers(cover, image_url, query, limit, offset, self.service.search.limit_max)
 
         @server.tool()
         def update_track_metadata(

@@ -435,16 +435,17 @@ class VisibleTrackService(TrackCollectionService):
             else:
                 result["cover_url"], result["cover_art"] = covered["cover_url"], covered["visia"]
         elif needs_art and not url:
-            result["cover_hint"] = self.COVER_HINT.format(name=result["name"])
+            result["cover_hint"] = self.COVER_HINT.format(name=result["name"], title=self.song_title(result))
         return result
 
     COVER_TAGS = ["cover art", "luna vibia"]
     COVER_HINT = (
         "{name} is saved but has no cover art yet. Tell the user it is saved, then generate "
-        "cover art that fits its mood and genre (landscape, 3:2 aspect ratio, 4.5 x 3, no "
-        "text) and pass it to update_track_cover; it is stored in Luna Visia and set as the "
-        "cover. If your turn ends before that, finish it with update_track_cover on the "
-        "user's next message, without uploading the track again."
+        "cover art that fits its mood and genre with the song's title, {title!r}, written "
+        "clearly on it (landscape, 3:2 aspect ratio, 4.5 x 3) and pass it to "
+        "update_track_cover; it is stored in Luna Visia and set as the cover. If your turn "
+        "ends before that, finish it with update_track_cover on the user's next message, "
+        "without uploading the track again."
     )
 
     def update_cover(self, name: str, source: dict[str, Any]) -> Row:
@@ -471,6 +472,12 @@ class VisibleTrackService(TrackCollectionService):
             **summarize(self.tracks.set_cover(name, image["public_url"])),
             "visia": {field: image.get(field) for field in ("status", "name", "image_id")},
         }
+
+    @staticmethod
+    def song_title(track: Row) -> str:
+        """The title a cover shows: the stored title, else the filename in words."""
+        title = (track.get("title") or "").strip()
+        return title or Path(track["name"]).stem.replace("_", " ").strip()
 
     def cover_or_placeholder(self, cover_url: str | None) -> str | None:
         """Visia's canonical URL for ``cover_url``, or the audio placeholder when none was given."""
@@ -580,6 +587,66 @@ class VisibleTrackService(TrackCollectionService):
         else:
             resolved = self.covers.resolve(cover_url) if cover_url and cover_url.strip() else None
         return summarize(self.tracks.set_cover(name, resolved))
+
+    def set_covers(self, covers: list[tuple[str, str | None]]) -> dict[str, Any]:
+        """Set many tracks' covers to Luna Visia images (or the placeholder), each on its own."""
+        return self._apply_batch(
+            [
+                (name, lambda name=name, url=url: self.cover_entry(self.set_cover(name, url, True)))
+                for name, url in covers
+            ],
+            "updated",
+        )
+
+    COVER_KINDS = ("any", "art", "placeholder", "none")
+
+    def cover_kind(self, cover_url: str | None) -> str:
+        if not cover_url:
+            return "none"
+        return "placeholder" if self.covers.is_placeholder(cover_url) else "art"
+
+    def cover_entry(self, row: Row) -> Row:
+        return {
+            "name": row["name"],
+            "title": self.song_title(row),
+            "artist": row.get("artist"),
+            "cover_url": row.get("cover_url"),
+            "cover": self.cover_kind(row.get("cover_url")),
+        }
+
+    def search_covers(
+        self,
+        cover: str = "any",
+        image_url: str | None = None,
+        query: str = "",
+        limit: int = 50,
+        offset: int = 0,
+        max_limit: int = 100,
+    ) -> dict[str, Any]:
+        """Find visible tracks by their cover: its kind, the Visia image, or words in the title.
+
+        Reads only Vibia's own records, so it works while Visia is down.
+        """
+        if cover not in self.COVER_KINDS:
+            raise ValueError(f"cover must be one of {', '.join(self.COVER_KINDS)}.")
+        image_id = self.covers.image_id(image_url) if image_url and image_url.strip() else None
+        words = query.casefold().split()
+        entries = []
+        for row in self.list():
+            entry = self.cover_entry(row)
+            if cover != "any" and entry["cover"] != cover:
+                continue
+            if image_id and not (entry["cover_url"] and self.covers.is_visia_url(entry["cover_url"])
+                                 and self.covers.image_id(entry["cover_url"]) == image_id):
+                continue
+            haystack = " ".join(str(entry[key] or "") for key in ("name", "title", "artist")).casefold()
+            if not all(word in haystack for word in words):
+                continue
+            entries.append(entry)
+        limit, offset = min(max(limit, 1), max_limit), max(offset, 0)
+        counts = Counter(entry["cover"] for entry in entries)
+        result = page(entries[offset : offset + limit], len(entries), limit, offset)
+        return {**result, "cover_counts": dict(counts)}
 
     def stats(self, top_tags: int = 10) -> dict[str, Any]:
         """Summarize the visible library from stored metadata, without opening files.
@@ -794,7 +861,7 @@ class UploadLinkService:
                     return {"status": "modified", **self.visible.ingest_bytes(ticket.name, data, replace=True)}
                 result = self.visible.upload(ticket.name or file_name, data)
                 if result["status"] == "created":
-                    result["cover_hint"] = self.visible.COVER_HINT.format(name=result["name"])
+                    result["cover_hint"] = self.visible.COVER_HINT.format(name=result["name"], title=self.visible.song_title(result))
                 return result
             except BaseException:
                 self.store.release(ticket)
