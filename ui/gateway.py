@@ -148,6 +148,7 @@ class UIGateway:
                 "email": user.get("email"),
                 "logout_url": logout_url,
                 "settings": {
+                    "version": UIConfig.VERSION,
                     "tracks_per_page": UIConfig.TRACKS_PER_PAGE,
                     "batch_size": UIConfig.BATCH_SIZE,
                     "playback_refresh_seconds": UIConfig.PLAYBACK_REFRESH_SECONDS,
@@ -327,7 +328,7 @@ class UIGateway:
 
     @staticmethod
     async def health(request: Request) -> Response:
-        return JSONResponse({"status": "ok"})
+        return JSONResponse({"status": "ok", "version": UIConfig.VERSION})
 
     def application(self) -> Starlette:
         app = Starlette(

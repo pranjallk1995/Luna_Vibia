@@ -25,6 +25,7 @@ export type TrackRecord = {
 };
 
 export type Settings = {
+  version: string;
   tracks_per_page: number;
   batch_size: number;
   playback_refresh_seconds: number;

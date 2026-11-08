@@ -336,6 +336,14 @@ in the thumbnail URL as well as new sizes in `config.py`.
 - **Forms:** `lv-form`, `lv-form-row`, and `lv-field`, with visible labels. A refused
   form keeps what was typed.
 
+## Footer
+
+Every Luna UI ends its signed-in page with `lv-footer`, the last thing inside `lv-page`:
+the app's name and its release, as in `Luna Vita · v1.4.0`, in small muted text and
+centred. The release comes from `ui/VERSION` through `settings.version`.
+Change `ui/VERSION` in the commit you tag as a release. Each
+gateway also names it in its health answer, which is how Luna Unia's cards show it.
+
 ## Behavior
 
 - **Instant feedback.** Favorites, light controls, and similar changes show at once and

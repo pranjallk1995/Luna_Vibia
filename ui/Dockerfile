@@ -18,7 +18,7 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system -r requirements.txt
 
-COPY config.py gateway.py hidden_pin.py tracks.py sso.py ./
+COPY VERSION config.py gateway.py hidden_pin.py tracks.py sso.py ./
 COPY tests ./tests
 COPY --from=web /web/dist ./static
 
