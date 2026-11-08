@@ -31,7 +31,9 @@ TOKEN_RECHECK_SECONDS = 30
 TOKEN_CACHE_ENTRIES = 256
 INTROSPECT_TIMEOUT_SECONDS = 5.0
 # What a companion app's token may reach, as (method, path).
-COMPANION_ROUTES = frozenset({("POST", "/api/companion/images"), ("GET", "/api/metadata")})
+COMPANION_ROUTES = frozenset(
+    {("POST", "/api/companion/images"), ("POST", "/api/companion/images/tags"), ("GET", "/api/metadata")}
+)
 
 
 class SentiaTokenVerifier:

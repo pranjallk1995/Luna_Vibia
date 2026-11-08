@@ -18,9 +18,12 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system -r requirements.txt
 
-COPY VERSION config.py gateway.py hidden_pin.py tracks.py sso.py ./
+COPY config.py gateway.py hidden_pin.py tracks.py sso.py ./
 COPY tests ./tests
 COPY --from=web /web/dist ./static
+# The release, passed in when GitHub Actions builds the image; blank for local builds.
+ARG LUNA_VERSION=
+ENV LUNA_VERSION=$LUNA_VERSION
 
 EXPOSE 8501
 
