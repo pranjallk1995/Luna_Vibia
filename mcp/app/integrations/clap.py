@@ -9,6 +9,7 @@ import time
 import numpy as np
 
 from app.core.config import AppConfig
+from app.integrations.gpu_worker import IdleWorker
 from app.integrations.model_usage import ModelUsage
 
 logger = logging.getLogger(__name__)
@@ -163,3 +164,39 @@ class ClapEncoder:
             best = np.argsort(scores)[::-1][: 1 if group == "voice" else per_group]
             matches[group] = [words[index] for index in best]
         return matches
+
+
+class IdleClapEncoder:
+    """``ClapEncoder`` in its own process, which exits after ``idle_seconds`` unused.
+
+    A batch of uploads loads CLAP once and hears every track; a few minutes after the
+    last one the process ends and the GPU is fully free again (see gpu_worker.py).
+    """
+
+    def __init__(self, model_name: str = AppConfig.CLAP_MODEL, device: str = "auto",
+                 idle_seconds: float = AppConfig.GPU_MODEL_IDLE_SECONDS) -> None:
+        self.model_name = model_name
+        self.requested_device = device
+        self.worker = IdleWorker(ClapEncoder, (model_name, device), idle_seconds=idle_seconds)
+        self.usage = ModelUsage(model_name, "Hears each track: audio and text embeddings, and mood hints", self._state)
+
+    def _state(self) -> tuple[bool, str]:
+        if self.worker.alive:
+            return True, f"{self.requested_device} (own process)"
+        return False, f"loads on first use; unloads after {self.worker.idle_seconds:.0f} s idle"
+
+    def _call(self, method: str, *args, **kwargs):
+        with self.usage.record():
+            return self.worker.call(method, *args, **kwargs)
+
+    def embed_audio(self, samples: np.ndarray) -> list[float]:
+        return self._call("embed_audio", samples)
+
+    def embed_texts(self, texts: list[str]) -> np.ndarray:
+        return self._call("embed_texts", texts)
+
+    def embed_text(self, text: str) -> list[float]:
+        return self._call("embed_text", text)
+
+    def describe(self, embedding: list[float], per_group: int = 3) -> dict[str, list[str]]:
+        return self._call("describe", embedding, per_group)

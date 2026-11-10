@@ -16,7 +16,7 @@ from app.integrations.remote import TrackSourceResolver
 from app.data.repositories import TrackRepository, PublicURLRepository
 from app.services.application import VibiaService
 from app.integrations.captioning import OllamaCaptioner
-from app.integrations.clap import ClapEncoder
+from app.integrations.clap import IdleClapEncoder
 from app.integrations.speakers import OwnerSpeakers, SpeakerPlayer, WindowsSpeakerHelper
 from app.integrations.visia import VisiaImageCatalog
 
@@ -42,7 +42,7 @@ class LunaVibiaApplication:
                     config.caption_model,
                     MetadataRules(config.max_tags, config.search_stop_words),
                 ),
-                ClapEncoder(device=config.clap_device),
+                IdleClapEncoder(device=config.clap_device),
                 VisiaImageCatalog(
                     config.visia_api_url,
                     config.placeholder_cover_id,

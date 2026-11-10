@@ -46,6 +46,9 @@ class AppConfig:
     # move aside, trying this many times (1 s, then 2 s, ... apart) before using the CPU.
     CLAP_GPU_ATTEMPTS: ClassVar[int] = 3
     CLAP_GPU_RETRY_SECONDS: ClassVar[float] = 1.0
+    # CLAP runs in its own process, which exits after this many idle seconds so the GPU
+    # is fully free for Luna Sentia's resident chat model (see gpu_worker.py).
+    GPU_MODEL_IDLE_SECONDS: ClassVar[float] = float(os.getenv("GPU_MODEL_IDLE_SECONDS", "120") or 120)
     # Tempo, key, and energy are measured on this much audio from the middle of a track.
     FEATURE_SAMPLE_RATE: ClassVar[int] = 22_050
     FEATURE_MAX_SECONDS: ClassVar[int] = 120

@@ -38,7 +38,7 @@ Cover art comes from Luna Visia.
 ## The model outside Ollama
 
 Besides the models it calls through Ollama, Luna Vibia runs one of its own, inside its
-backend: CLAP (`laion/clap-htsat-unfused`), which hears each track and turns it, and every search, into an embedding, with mood hints for the caption model. It runs on the GPU when there is one, with a CPU copy as a last resort.
+backend: CLAP (`laion/clap-htsat-unfused`), which hears each track and turns it, and every search, into an embedding, with mood hints for the caption model. It runs on the GPU when there is one, with a CPU copy as a last resort, in its own process, which exits after `GPU_MODEL_IDLE_SECONDS` (120) unused so the GPU is fully free again for Luna Sentia's resident chat model.
 
 Its calls never pass through [Luna Sentia's model monitor](https://github.com/pranjallk1995/Luna_Sentia#model-monitor), so the app counts them itself: whether the model is
 loaded and on which device, its calls, failures, and busy time since the app started,
