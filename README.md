@@ -225,21 +225,23 @@ POSTGRES_PASSWORD=replace-with-a-private-database-password
 CAPTION_MODEL=qwen3-vl:8b-instruct
 CLAP_DEVICE=auto
 LUNAVISIA_API_URL=http://luna-visia-mcp:8000
-LUNAVIBIA_PUBLIC_BASE_URL=https://vibia.example.com
+LUNAVIBIA_PUBLIC_BASE_URL=
 LUNAVIBIA_API_TOKEN=replace-with-a-random-value-of-at-least-32-characters
 LUNAVIBIA_ALLOWED_EMAILS=*
-MCP_PUBLIC_URL=https://vibia-mcp.example.com
+MCP_PUBLIC_URL=http://localhost:18005
 PULSE_SOCKET=/mnt/wslg/PulseServer
 LUNAVIBIA_SPEAKER_HELPER_URL=http://host.docker.internal:18007
 LUNAVIBIA_PLACEHOLDER_COVER_ID=
-LUNA_SSO_URL=https://auth.example.com
+LUNA_SSO_URL=http://localhost:19090
 LUNA_SSO_INTERNAL_URL=http://luna-sentia-auth:8000
 ```
 
 - `LUNAVIBIA_API_TOKEN` is a shared secret between the UI and the MCP server; generate
   one with `openssl rand -hex 32`.
 - `LUNAVIBIA_PUBLIC_BASE_URL` is the HTTPS origin of playable track URLs
-  (`.../api/public/tracks/<track-id>`); route it to `127.0.0.1:18005`.
+  (`.../api/public/tracks/<track-id>`), such as `https://vibia.example.com` routed to
+  `127.0.0.1:18005`; leave it blank without a tunnel. With a tunnel, `MCP_PUBLIC_URL` and
+  `LUNA_SSO_URL` change to their public HTTPS addresses too.
 - Sign-in goes through Luna Sentia's single sign-on, as in every Luna app; see
   [Single sign-on](https://github.com/pranjallk1995/Luna_Sentia#single-sign-on).
 

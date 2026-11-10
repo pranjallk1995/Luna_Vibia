@@ -8,7 +8,7 @@ services:
     # to run on CPU on a machine without one.
     gpus: all
     environment:
-      LUNA_SSO_URL: ${LUNA_SSO_URL:?Set LUNA_SSO_URL to Luna Sentia's public sign-on address}
+      LUNA_SSO_URL: ${LUNA_SSO_URL:-http://localhost:19090}
       LUNA_SSO_INTERNAL_URL: ${LUNA_SSO_INTERNAL_URL:-http://luna-sentia-auth:8000}
       DATABASE_URL: postgresql://lunavibia:${POSTGRES_PASSWORD:-lunavibia-dev}@luna-sentia-db:5432/lunavibia
       TRACK_DIR: /data/tracks
@@ -68,7 +68,7 @@ services:
     working_dir: /workspace/ui
     restart: unless-stopped
     environment:
-      LUNA_SSO_URL: ${LUNA_SSO_URL:?Set LUNA_SSO_URL to Luna Sentia's public sign-on address}
+      LUNA_SSO_URL: ${LUNA_SSO_URL:-http://localhost:19090}
       LUNA_SSO_INTERNAL_URL: ${LUNA_SSO_INTERNAL_URL:-http://luna-sentia-auth:8000}
       TRACK_DIR: /data/tracks
       LUNAVIBIA_API_URL: http://luna-vibia-mcp:8000
