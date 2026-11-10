@@ -7,7 +7,7 @@
 ![PostgreSQL in Luna Sentia](https://img.shields.io/badge/PostgreSQL-in_Luna_Sentia-4169E1?logo=postgresql&logoColor=white)
 ![CLAP included](https://img.shields.io/badge/CLAP-included-FFD21E?logo=huggingface&logoColor=black)
 ![NVIDIA GPU optional](https://img.shields.io/badge/NVIDIA_GPU-optional-76B900?logo=nvidia&logoColor=white)
-![Status: v1.5](https://img.shields.io/badge/Status-v1.5-2EA043)
+![Status: v1.6](https://img.shields.io/badge/Status-v1.6-2EA043)
 
 <p align="center">
   <a href="docs/assets/luna-vibia-showcase.mp4"><img src="docs/assets/luna-vibia-showcase.webp" alt="From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia, then asking a chat assistant for a playlist through its MCP tools" width="900"></a>
@@ -34,6 +34,16 @@ Cover art comes from Luna Visia.
 <p align="center">
   <img src="docs/showcase.png" alt="Luna Vibia library playing a looped sleep playlist on an Echo Dot, started from a chat assistant">
 </p>
+
+## Models
+
+| Part | Model | Where it runs | Before changing it |
+| --- | --- | --- | --- |
+| Captions and tags | `CAPTION_MODEL` (default `qwen3-vl:8b-instruct`, text only), 16k context | Sentia's Ollama, on the GPU | Compare it on every stored track with [`model_evaluations/`](model_evaluations/README.md); afterwards `backfill_metadata` re-captions tracks made by another model |
+| Listening and search | CLAP (`laion/clap-htsat-unfused`, `CLAP_MODEL` in `mcp/app/core/config.py`) | Here, on the GPU when there is one (`CLAP_DEVICE`), in its own process | Pinned in the image; a new CLAP needs every track heard again, and the caption evaluation scores with it, so compare captions before and after by hand |
+
+`CAPTION_MODEL` must be in Sentia's `SENTIA_MODELS`; Sentia's
+[Changing a model](https://github.com/pranjallk1995/Luna_Sentia#changing-a-model) lists every check to run first.
 
 ## The model outside Ollama
 
@@ -237,6 +247,17 @@ docker compose up -d
 - UI: <http://127.0.0.1:18506>
 - Service health: <http://127.0.0.1:18005/health>
 - MCP endpoint: <http://127.0.0.1:18005/mcp> (clients sign in; see Connecting an MCP client)
+
+### Caption model
+
+`CAPTION_MODEL` (`qwen3-vl:8b-instruct`, the model Visia and Lexia use) must be listed
+in Sentia's `SENTIA_MODELS`. It never hears the audio: it writes the caption and tags
+from what CLAP heard and the measurements. Before changing it, compare the new model
+with the current one on the whole library: [`model_evaluations/`](model_evaluations/README.md)
+captions every stored track with both from the same evidence, without writing to the
+database, and scores how well each caption matches the track's sound in CLAP's space,
+how many tags the evidence supports, failures and time. The full list of checks is in
+Sentia's [Changing a model](https://github.com/pranjallk1995/Luna_Sentia#changing-a-model).
 
 ### GPU listening (optional)
 

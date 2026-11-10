@@ -17,3 +17,7 @@ __pycache__/
 # Browser app
 ui/web/node_modules/
 ui/web/dist/
+
+# Model-evaluation results (captions and replies from real data)
+model_evaluations/results/
+*.jsonl
