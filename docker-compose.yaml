@@ -21,7 +21,7 @@ services:
       LUNAVIBIA_PUBLIC_BASE_URL: ${LUNAVIBIA_PUBLIC_BASE_URL}
       MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://localhost:18005}
       UI_PUBLIC_URL: ${UI_PUBLIC_URL:-http://localhost:18506}
-      LUNAVIBIA_API_TOKEN: ${LUNAVIBIA_API_TOKEN:?Set LUNAVIBIA_API_TOKEN to a private random value of at least 32 characters}
+      LUNAVIBIA_API_TOKEN: ${LUNAVIBIA_API_TOKEN:-lunavibia-dev-token-for-localhost-only}
       # play_tracks plays on the host's speakers through its sound server, mounted below.
       PULSE_SERVER: unix:/run/pulse/native
       # Under WSL, the host's helper lists Windows' Bluetooth speakers and switches to one (host/).
@@ -73,8 +73,8 @@ services:
       TRACK_DIR: /data/tracks
       LUNAVIBIA_API_URL: http://luna-vibia-mcp:8000
       LUNAVISIA_API_URL: ${LUNAVISIA_API_URL:-http://luna-visia-mcp:8000}
-      LUNAVIBIA_API_TOKEN: ${LUNAVIBIA_API_TOKEN:?Set LUNAVIBIA_API_TOKEN to a private random value of at least 32 characters}
-      LUNAVIBIA_ALLOWED_EMAILS: ${LUNAVIBIA_ALLOWED_EMAILS:?Set LUNAVIBIA_ALLOWED_EMAILS to the Google accounts allowed to access Vibia}
+      LUNAVIBIA_API_TOKEN: ${LUNAVIBIA_API_TOKEN:-lunavibia-dev-token-for-localhost-only}
+      LUNAVIBIA_ALLOWED_EMAILS: ${LUNAVIBIA_ALLOWED_EMAILS:-}
     ports:
       - "127.0.0.1:18506:8501"
     volumes:

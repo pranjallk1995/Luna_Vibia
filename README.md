@@ -233,7 +233,9 @@ docker compose run --rm postgres-init   # creates the lunavibia role and databas
 To start Sentia and every Luna app together, use `../luna.sh start`; see the
 [Sentia README](https://github.com/pranjallk1995/Luna_Sentia#start-everything).
 
-Create a private `.env` from `.env.example`:
+A fresh clone needs no `.env`: `luna.sh start` runs Vibia with localhost defaults, where only Luna Sentia's owner may use it and the UI-to-backend token is `lunavibia-dev-token-for-localhost-only`. Set your own values before giving it a public (https) address; `luna.sh start` refuses a public app that still uses the default token.
+
+To change them, create a private `.env` from `.env.example`:
 
 ```dotenv
 POSTGRES_PASSWORD=replace-with-a-private-database-password

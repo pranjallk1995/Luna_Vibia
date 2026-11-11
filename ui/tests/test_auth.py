@@ -13,6 +13,12 @@ ENV = {
 
 
 class AuthenticationTests(unittest.TestCase):
+
+    def test_an_empty_list_lets_only_sentias_owner_in(self):
+        auth = LunaSingleSignOn(frozenset(), SSOConfig(public_url="https://auth.example.com"))
+        self.assertTrue(auth.is_allowed({"user_id": "owner", "email": "owner@localhost", "email_verified": True}))
+        self.assertFalse(auth.is_allowed({"user_id": "u2", "email": "someone@example.com", "email_verified": True}))
+        self.assertFalse(auth.is_allowed({"user_id": "owner", "email": "owner@localhost", "email_verified": False}))
     def test_verified_allowlisted_email_is_required(self):
         auth = LunaSingleSignOn(frozenset({"owner@example.com"}), SSOConfig(public_url="https://auth.example.com"))
         self.assertTrue(auth.is_allowed({"email": "Owner@Example.com", "email_verified": True}))
@@ -24,7 +30,8 @@ class AuthenticationTests(unittest.TestCase):
             self.assertEqual(UIConfig.from_env().allowed_emails, frozenset({"owner@example.com"}))
 
     def test_settings_are_required(self):
-        for name in ENV:
+        # Every setting but the allowed emails, which default to Sentia's owner only.
+        for name in (key for key in ENV if key != "LUNAVIBIA_ALLOWED_EMAILS"):
             env = {key: value for key, value in ENV.items() if key != name}
             with patch.dict(os.environ, env, clear=True), self.assertRaisesRegex(RuntimeError, name):
                 UIConfig.from_env()

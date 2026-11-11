@@ -107,8 +107,6 @@ class UIConfig:
             for email in os.getenv("LUNAVIBIA_ALLOWED_EMAILS", "").split(",")
             if email.strip()
         )
-        if not allowed_emails:
-            raise RuntimeError("LUNAVIBIA_ALLOWED_EMAILS must list at least one account.")
         return cls(
             track_dir=Path(os.getenv("TRACK_DIR", "/data/tracks")),
             api_url=api_url,
