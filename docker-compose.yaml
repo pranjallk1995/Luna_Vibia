@@ -1,7 +1,7 @@
 services:
   mcp:
     build: ./mcp
-    image: ghcr.io/pranjallk1995/luna-vibia-mcp:${LUNA_IMAGE_TAG:-v1.6.1}
+    image: ghcr.io/pranjallk1995/luna-vibia-mcp:${LUNA_IMAGE_TAG:-v1.7.0}
     working_dir: /workspace/mcp
     restart: unless-stopped
     # CLAP runs on the GPU (CLAP_DEVICE=auto picks it when present). Remove this line
@@ -64,7 +64,7 @@ services:
 
   ui:
     build: ./ui
-    image: ghcr.io/pranjallk1995/luna-vibia-ui:${LUNA_IMAGE_TAG:-v1.6.1}
+    image: ghcr.io/pranjallk1995/luna-vibia-ui:${LUNA_IMAGE_TAG:-v1.7.0}
     working_dir: /workspace/ui
     restart: unless-stopped
     environment:
