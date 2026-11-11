@@ -108,7 +108,7 @@ plays, which Lumia's lights follow.
 | Component | Technology | Purpose |
 | --- | --- | --- |
 | UI (`luna-vibia-ui`, `:18504`) | React + TypeScript (Vite), served by a Starlette gateway | Gallery and list views, track dialog with player, 4.5:3 cover, and inline editing |
-| MCP (`luna-vibia-mcp`, `:18003`) | FastMCP + REST, LangGraph | Upload, analysis, search, playlists, covers; the UI calls it with a bearer token |
+| MCP (`luna-vibia-mcp`, `:18004`) | FastMCP + REST, LangGraph | Upload, analysis, search, playlists, covers; the UI calls it with a bearer token |
 | Listening | CLAP (GPU or CPU), librosa, ffprobe | Embedding, matched moods and instruments, tempo, key, energy |
 | Captions | Sentia's Ollama (`CAPTION_MODEL`, text only) | Caption and tags from what CLAP heard and the measurements |
 | Storage | Sentia's PostgreSQL (`lunavibia`, pgvector) and a track volume | Metadata, embeddings, full-text index; the audio files |
@@ -245,7 +245,7 @@ LUNAVISIA_API_URL=http://luna-visia-mcp:8000
 LUNAVIBIA_PUBLIC_BASE_URL=
 LUNAVIBIA_API_TOKEN=replace-with-a-random-value-of-at-least-32-characters
 LUNAVIBIA_ALLOWED_EMAILS=*
-MCP_PUBLIC_URL=http://localhost:18003
+MCP_PUBLIC_URL=http://localhost:18004
 PULSE_SOCKET=/mnt/wslg/PulseServer
 LUNAVIBIA_SPEAKER_HELPER_URL=http://host.docker.internal:18007
 LUNAVIBIA_PLACEHOLDER_COVER_ID=
@@ -257,7 +257,7 @@ LUNA_SSO_INTERNAL_URL=http://luna-sentia-auth:8000
   one with `openssl rand -hex 32`.
 - `LUNAVIBIA_PUBLIC_BASE_URL` is the HTTPS origin of playable track URLs
   (`.../api/public/tracks/<track-id>`), such as `https://vibia.example.com` routed to
-  `127.0.0.1:18003`; leave it blank without a tunnel. With a tunnel, `MCP_PUBLIC_URL` and
+  `127.0.0.1:18004`; leave it blank without a tunnel. With a tunnel, `MCP_PUBLIC_URL` and
   `LUNA_SSO_URL` change to their public HTTPS addresses too.
 - Sign-in goes through Luna Sentia's single sign-on, as in every Luna app; see
   [Single sign-on](https://github.com/pranjallk1995/Luna_Sentia#single-sign-on).
@@ -267,8 +267,8 @@ docker compose up -d
 ```
 
 - UI: <http://127.0.0.1:18504>
-- Service health: <http://127.0.0.1:18003/health>
-- MCP endpoint: <http://127.0.0.1:18003/mcp> (clients sign in; see Connecting an MCP client)
+- Service health: <http://127.0.0.1:18004/health>
+- MCP endpoint: <http://127.0.0.1:18004/mcp> (clients sign in; see Connecting an MCP client)
 
 ### Caption model
 

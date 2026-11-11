@@ -1,7 +1,7 @@
 services:
   mcp:
     build: ./mcp
-    image: ghcr.io/pranjallk1995/luna-vibia-mcp:${LUNA_IMAGE_TAG:-v1.7.0}
+    image: ghcr.io/pranjallk1995/luna-vibia-mcp:${LUNA_IMAGE_TAG:-v1.7.1}
     working_dir: /workspace/mcp
     restart: unless-stopped
     # CLAP runs on the GPU (CLAP_DEVICE=auto picks it when present). Remove this line
@@ -19,7 +19,7 @@ services:
       LUNAVISIA_COMPANION_TOKEN: ${LUNAVISIA_COMPANION_TOKEN:-}
       LUNAVIBIA_PLACEHOLDER_COVER_ID: ${LUNAVIBIA_PLACEHOLDER_COVER_ID:-}
       LUNAVIBIA_PUBLIC_BASE_URL: ${LUNAVIBIA_PUBLIC_BASE_URL}
-      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://localhost:18003}
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://localhost:18004}
       UI_PUBLIC_URL: ${UI_PUBLIC_URL:-http://localhost:18504}
       LUNAVIBIA_API_TOKEN: ${LUNAVIBIA_API_TOKEN:-lunavibia-dev-token-for-localhost-only}
       # play_tracks plays on the host's speakers through its sound server, mounted below.
@@ -31,7 +31,7 @@ services:
     expose:
       - "8000"
     ports:
-      - "127.0.0.1:18003:8000"
+      - "127.0.0.1:18004:8000"
     volumes:
       - track_data:/data/tracks
       - download_data:/data/downloads
@@ -64,7 +64,7 @@ services:
 
   ui:
     build: ./ui
-    image: ghcr.io/pranjallk1995/luna-vibia-ui:${LUNA_IMAGE_TAG:-v1.7.0}
+    image: ghcr.io/pranjallk1995/luna-vibia-ui:${LUNA_IMAGE_TAG:-v1.7.1}
     working_dir: /workspace/ui
     restart: unless-stopped
     environment:
