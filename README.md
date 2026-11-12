@@ -217,6 +217,24 @@ with `LUNAVIBIA_PLACEHOLDER_COVER_ID`; while that is blank the cover stays empty
 fetches covers from Visia over `luna_sentia_network`; tracks without one show a generated
 placeholder. Visia must be running for covers to be set or shown.
 
+## Quickstart
+
+On one machine you need no `.env`. Clone Vibia beside [Luna Sentia](https://github.com/pranjallk1995/Luna_Sentia),
+which runs its database, models, and sign-in, then start both:
+
+```sh
+git clone https://github.com/pranjallk1995/Luna_Sentia.git
+git clone https://github.com/pranjallk1995/Luna_Vibia.git
+./Luna_Sentia/luna.sh start vibia
+```
+
+`start` pulls the release images, starts Sentia and waits until it is healthy, then starts
+Vibia. Once both are up, it deletes the images their new ones replaced. Open
+<http://localhost:18504> and sign in as Sentia's owner with one click. Playing tracks on the host's speakers also needs the speaker helper; see [Start](#start). To run your
+local code instead, use `./Luna_Sentia/luna.sh start --build vibia`. Before giving Vibia a
+public address, set your own secrets as described in [Start](#start). Every option of
+`luna.sh` is in [Start everything](https://github.com/pranjallk1995/Luna_Sentia#start-everything).
+
 ## Start
 
 Start [Luna Sentia](https://github.com/pranjallk1995/Luna_Sentia) first and wait until it
