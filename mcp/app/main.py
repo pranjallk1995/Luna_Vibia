@@ -15,6 +15,7 @@ from app.core.models import MetadataRules
 from app.integrations.remote import TrackSourceResolver
 from app.data.repositories import TrackRepository, PublicURLRepository
 from app.services.application import VibiaService
+from app.services.starter import StarterLibrary
 from app.integrations.captioning import OllamaCaptioner
 from app.integrations.clap import IdleClapEncoder
 from app.integrations.speakers import OwnerSpeakers, SpeakerPlayer, WindowsSpeakerHelper
@@ -56,8 +57,10 @@ class LunaVibiaApplication:
                     )
                 ),
             )
-        # Public links are served by this backend, so a new person's start at its address.
-        self.database.tenants.after_create = lambda: self.service.urls.seed(config.mcp_public_url or config.public_base_url)
+        self.service.starter = StarterLibrary(self.database, config.track_dir)
+        self.database.tenants.after_create = self.prepare_person
+        # Anyone who joined earlier gets tracks chosen since.
+        self.service.starter.deliver_to_everyone()
         self.branding = ServerBranding(config.mcp_public_url)
         self.mcp = VibiaMCP(
             "Luna Vibia",
@@ -79,6 +82,12 @@ class LunaVibiaApplication:
             ),
         )
         VibiaHTTPRoutes(self.mcp, self.service, self.branding, config.api_token)
+
+    def prepare_person(self) -> None:
+        """Give someone what they start with, the first time this process needs them."""
+        # Public links are served by this backend, so a new person's start at its address.
+        self.service.urls.seed(self.config.mcp_public_url or self.config.public_base_url)
+        self.service.starter.deliver(tenancy.current())
 
     def remove_user(self, user_id: str) -> None:
         """Delete everything this person has in this app."""

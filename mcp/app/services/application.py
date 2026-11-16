@@ -1368,6 +1368,8 @@ class VibiaService:
         self.playback = playback
         self.showcase = showcase
         self.saved_playlists = saved_playlists
+        # The owner's tracks that everyone starts with; set once the database is ready.
+        self.starter = None
 
     @classmethod
     def create(

@@ -621,5 +621,59 @@ class SelectionTests(VibiaServiceTestCase):
             self.visible.select_paths(["one.wav"])
 
 
+class StarterLibraryTests(unittest.TestCase):
+    def test_only_the_owner_chooses(self) -> None:
+        from unittest import mock
+
+        from app.core import tenancy
+        from app.services.starter import StarterLibrary
+
+        database = mock.Mock()
+        with tenancy.acting_as("ab12"), self.assertRaises(PermissionError):
+            StarterLibrary(database, Path("/nowhere")).choose(None, True)
+        database.connect.assert_not_called()
+
+    def test_the_owner_is_not_given_their_own_tracks(self) -> None:
+        from unittest import mock
+
+        from app.core import tenancy
+        from app.services.starter import StarterLibrary
+
+        database = mock.Mock()
+        self.assertEqual(StarterLibrary(database, Path("/nowhere")).deliver(tenancy.OWNER), 0)
+        database.transaction.assert_not_called()
+
+    def test_a_copy_shares_the_bytes_until_changed_and_outlives_the_original(self) -> None:
+        from app.core import tenancy
+        from app.data.storage import TrackStorage
+        from app.services.starter import link_or_keep
+
+        with tempfile.TemporaryDirectory() as temp:
+            storage = TrackStorage(Path(temp), {".wav"})
+            with tenancy.acting_as(tenancy.OWNER):
+                original = storage.path("a.wav")
+                original.write_bytes(b"original")
+            copy_dir = Path(temp) / "u_ab12"
+            copy_dir.mkdir()
+            copy = copy_dir / "a.wav"
+            link_or_keep(original, copy)
+            link_or_keep(original, copy)
+            self.assertEqual(copy.stat().st_ino, original.stat().st_ino)
+            with tenancy.acting_as("ab12"):
+                with storage.writing(storage.path("a.wav"), b"changed"):
+                    pass
+            self.assertEqual((original.read_bytes(), copy.read_bytes()), (b"original", b"changed"))
+            copy.unlink()
+            self.assertEqual(original.read_bytes(), b"original")
+
+    def test_every_column_a_copy_keeps_exists(self) -> None:
+        from app.data.database import SCHEMA_SQL
+        from app.services.starter import COPIED_COLUMNS
+
+        table = SCHEMA_SQL.split("CREATE TABLE IF NOT EXISTS track_metadata (", 1)[1].split(");", 1)[0]
+        declared = {line.split()[0] for line in table.strip().splitlines()} | {"showcase_rank"}
+        self.assertEqual(set(COPIED_COLUMNS) - declared, set())
+
+
 if __name__ == "__main__":
     unittest.main()

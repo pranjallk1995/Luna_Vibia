@@ -68,6 +68,18 @@ Add `https://<your vibia MCP host>/mcp` to your client, such as Claude or ChatGP
 
 Only the owner can play on the host's speakers or change their volume, and nobody else can see what is playing. Everyone else has their own library, and their covers are stored in their own Luna Visia gallery. If the speakers are all you use it for, consider hiding Vibia from everyone else.
 
+### Starter library
+
+Everyone starts with the tracks the owner has chosen, as their own copy in their own library. They can rename or delete a copy without touching anyone else's. Copies take no extra disk space, because the files are hard links on one volume and every change to a stored track replaces its file rather than writing into it. Each copy has its own ID and public link, and keeps its caption, tags, cover, and listening embedding, so search and similarity order work straight away.
+
+- Hidden tracks and favorites are never included.
+- New uploads are not included unless the owner chooses them, so they stay private.
+- Each track is given once: a copy someone deleted does not come back, and a name they already use keeps their own track.
+- Later changes to the owner's original do not reach existing copies, and taking a track out of the library does not remove copies people already have.
+- Playlists are not copied.
+
+The owner chooses with the `set_starter_tracks` MCP tool. Everyone gets chosen tracks straight away, including people who joined earlier. Luna Visia's starter images work the same way.
+
 In the code, `mcp/app/core/tenancy.py` holds who the current request or job acts for, `mcp/app/data/tenants.py` creates and removes each person's schema, and `mcp/app/transport/luna_mcp.py` checks connector tokens and the private token on `/api/` routes. Code that does not say who it acts for raises `NoUserError` rather than reading anyone's data.
 
 ## Architecture
@@ -93,7 +105,7 @@ In the code, `mcp/app/core/tenancy.py` holds who the current request or job acts
 
 Every Luna app but Luna Socia is a React UI plus a FastMCP service on Luna Sentia's
 `luna_sentia_network`; Socia, the owner's chat with Luna, is one service with no MCP
-server. Each app's data lives in Sentia's PostgreSQL, people sign in through Sentia's
+server of its own. Each app's data lives in Sentia's PostgreSQL, people sign in through Sentia's
 `auth`, and model calls go through Sentia's model monitor, which times each one, samples
 the GPU and keeps Socia's chat model resident, to its Ollama. Socia's pictures come from
 Sentia's ComfyUI, which takes turns with Ollama on the GPU. Visia's SigLIP 2, Vibia's CLAP
@@ -103,7 +115,9 @@ for Lumia, and cover art for Vibia. Grey dashed lines are planned: links into Fi
 details from Lexia, transaction image and icon URLs from Visia). Luna Unia is the one home
 for the other apps, on port 42069: it checks which Luna stacks are running and opens each
 one with the shared sign-in. The purple line is the mood and beats of the track Vibia
-plays, which Lumia's lights follow.
+plays, which Lumia's lights follow. The green line is Socia using every app's MCP tools,
+and Sentia's, as the owner: it signs in to them with OAuth like any MCP client, so Luna can
+play music, dim the lights or find a photo from the chat.
 
 | Component | Technology | Purpose |
 | --- | --- | --- |
@@ -418,14 +432,15 @@ only report. After changing `host/`, run `systemctl --user restart luna-vibia-sp
 - `download_tracks` - a 24-hour ZIP link to the original files.
 - `backfill_metadata` - analyze files missing current metadata.
 - `set_public_base_url` - change the public origin and regenerate every track URL.
+- `set_starter_tracks` - owner only: choose the tracks everyone starts with; hidden tracks and favorites are never included.
 
 ## Data model
 
 `track_metadata` holds one row per track: name, immutable `track_id`, size and SHA-256,
 caption and tags, title, artist, generator notes, format, duration, sample rate,
 channels, bitrate, tempo, key, energy, `cover_url`, the CLAP `embedding` (pgvector, HNSW
-cosine index), an optional similarity `showcase_rank`, a weighted full-text `search_vector`, and the hidden, favorite, and
-public-URL fields. `playlists` holds each playlist's name and description, and
+cosine index), an optional similarity `showcase_rank`, a weighted full-text `search_vector`, and the hidden, favorite,
+starter, and public-URL fields. `starter_received` records which of the owner's starter tracks a person has been given. `playlists` holds each playlist's name and description, and
 `playlist_tracks` its tracks by `track_id` and position. `vault_security` and
 `vault_config` are as in Luna Visia.
 

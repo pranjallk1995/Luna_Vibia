@@ -51,6 +51,13 @@ CREATE INDEX IF NOT EXISTS track_metadata_favorite_idx
     ON track_metadata (favorite, hidden, updated_at DESC);
 CREATE INDEX IF NOT EXISTS track_metadata_embedding_idx
     ON track_metadata USING hnsw (embedding vector_cosine_ops);
+-- The starter library: on the owner's tracks, which everyone is given; on everyone
+-- else's, which of those they have already been given.
+ALTER TABLE track_metadata ADD COLUMN IF NOT EXISTS starter boolean NOT NULL DEFAULT false;
+CREATE TABLE IF NOT EXISTS starter_received (
+    source_track_id uuid PRIMARY KEY,
+    received_at timestamptz NOT NULL DEFAULT now()
+);
 CREATE TABLE IF NOT EXISTS vault_security (
     singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
     password_salt bytea NOT NULL,
