@@ -101,8 +101,8 @@ In the code, `mcp/app/core/tenancy.py` holds who the current request or job acts
 | SigLIP 2 (`google/siglip2-base-patch16-224`) | Visia itself, GPU only | Visia's meaning search | Pinned in Visia's image; `backfill_metadata` re-embeds |
 | CLAP (`laion/clap-htsat-unfused`) | Vibia itself, GPU or CPU | Vibia's listening and search | Pinned in Vibia's image; every track is heard again |
 | Docling (layout, tables, OCR) | Lexia itself, GPU or CPU | Lexia's page reading | Pinned in Lexia's image |
-| Whisper `large-v3-turbo`, Kokoro 82M | Socia itself, GPU (about 1.75 GB, loaded at start) or CPU | Socia's voice messages and Luna's voice (`LUNASOCIA_STT_MODEL`, `LUNASOCIA_TTS_VOICE`, `LUNASOCIA_VOICE_DEVICE`) | Listen to a few replies; downloaded on first use |
-| InsightFace `buffalo_l` (SCRFD, ArcFace) | Socia itself, GPU (about 0.5 GB, loaded at start) or CPU | Whose faces are in a photo, Luna's or the owner's, told to her vision model | Socia's `model_evaluations/self_recognition.py`; non-commercial licence |
+| Whisper `large-v3-turbo`, Kokoro 82M | Socia itself, GPU (about 1.5 GB, and 0.2 GB for CUDA, loaded at start) or CPU | Socia's voice messages and Luna's voice (`LUNASOCIA_STT_MODEL`, `LUNASOCIA_TTS_VOICE`, `LUNASOCIA_VOICE_DEVICE`) | Listen to a few replies; downloaded on first use |
+| InsightFace `buffalo_l` (SCRFD, ArcFace) | Socia itself, GPU (about 0.4 GB, loaded with the vision model for a photo) or CPU | Whose faces are in a photo, Luna's or the owner's, told to her vision model | Socia's `model_evaluations/self_recognition.py`; non-commercial licence |
 <!-- luna-models:end -->
 
 Every Luna app but Luna Socia is a React UI plus a FastMCP service on Luna Sentia's
