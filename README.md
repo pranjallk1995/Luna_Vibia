@@ -103,6 +103,7 @@ In the code, `mcp/app/core/tenancy.py` holds who the current request or job acts
 | Docling (layout, tables, OCR) | Lexia itself, GPU or CPU | Lexia's page reading | Pinned in Lexia's image |
 | Whisper `large-v3-turbo`, Kokoro 82M | Socia itself, GPU (about 1.5 GB, and 0.2 GB for CUDA, loaded at start) or CPU | Socia's voice messages and Luna's voice (`LUNASOCIA_STT_MODEL`, `LUNASOCIA_TTS_VOICE`, `LUNASOCIA_VOICE_DEVICE`) | Listen to a few replies; downloaded on first use |
 | InsightFace `buffalo_l` (SCRFD, ArcFace) | Socia itself, GPU (about 0.4 GB, loaded with the vision model for a photo) or CPU | Whose faces are in a photo, Luna's or the owner's, told to her vision model | Socia's `model_evaluations/self_recognition.py`; non-commercial licence |
+| Qwen3-Embedding 0.6B (ONNX, `onnx-community/Qwen3-Embedding-0.6B-ONNX`) | Socia itself, CPU (2.4 GB of RAM, about 0.4 s a turn) or GPU (1.2 GB), loaded at start | Whether a message holds a lasting fact Luna should remember, about the owner or herself (`LUNASOCIA_REMEMBER_AUTO`, `LUNASOCIA_REMEMBER_DEVICE`) | Socia's notebook 03, Part B: its neurons are trained on this model's embeddings |
 <!-- luna-models:end -->
 
 Every Luna app but Luna Socia is a React UI plus a FastMCP service on Luna Sentia's
