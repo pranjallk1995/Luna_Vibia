@@ -39,7 +39,7 @@ Cover art comes from Luna Visia.
 
 | Part | Model | Where it runs | Before changing it |
 | --- | --- | --- | --- |
-| Captions and tags | `CAPTION_MODEL` (default `qwen3-vl:8b-instruct`, text only), 16k context | Sentia's Ollama, on the GPU | Compare it on every stored track with [`model_evaluations/`](model_evaluations/README.md); afterwards `backfill_metadata` re-captions tracks made by another model |
+| Captions and tags | `CAPTION_MODEL` (default `huihui_ai/qwen3-vl-abliterated:8b-instruct`, text only), 16k context | Sentia's Ollama, on the GPU | Compare it on every stored track with [`model_evaluations/`](model_evaluations/README.md); afterwards `backfill_metadata` re-captions tracks made by another model |
 | Listening and search | CLAP (`laion/clap-htsat-unfused`, `CLAP_MODEL` in `mcp/app/core/config.py`) | Here, on the GPU when there is one (`CLAP_DEVICE`), in its own process | Pinned in the image; a new CLAP needs every track heard again, and the caption evaluation scores with it, so compare captions before and after by hand |
 
 `CAPTION_MODEL` must be in Sentia's `SENTIA_MODELS`; Sentia's
@@ -93,9 +93,8 @@ In the code, `mcp/app/core/tenancy.py` holds who the current request or job acts
 
 | Model | Served by | Used by | Before changing it |
 | --- | --- | --- | --- |
-| `qwen3-vl:8b-instruct` | Ollama | Lexia (`DOCUMENT_MODEL`), Visia (`VISION_MODEL`), Vibia (`CAPTION_MODEL`), Fiora (`OLLAMA_MODEL`) | `model_checks/check_model.py`, then Lexia's, Visia's and Vibia's `model_evaluations/` |
+| `huihui_ai/qwen3-vl-abliterated:8b-instruct` (Qwen3-VL 8B, uncensored) | Ollama, at 16k context for every app; in Socia's chat model's place while Luna looks at a photo | Lexia (`DOCUMENT_MODEL`), Visia (`VISION_MODEL`), Vibia (`CAPTION_MODEL`), Fiora (`OLLAMA_MODEL`), Socia's photo replies (`LUNASOCIA_VISION_MODEL`) | `model_checks/check_model.py`, then Lexia's, Visia's and Vibia's `model_evaluations/` and Socia's cat game |
 | `huihui_ai/qwen3-abliterated:8b` (Qwen3 8B, uncensored) | Ollama, resident at `SENTIA_RESIDENT_CONTEXT` | Socia's chat (`LUNASOCIA_CHAT_MODEL`) | `model_checks/check_model.py --context 8192`, then Socia's `model_evaluations/` |
-| `huihui_ai/qwen3-vl-abliterated:8b-instruct` (Qwen3-VL 8B, uncensored) | Ollama, in the chat model's place while Luna looks at a photo | Socia's photo replies (`LUNASOCIA_VISION_MODEL`) | Socia's cat game, then a few photos by hand |
 | `qwen3-embedding:0.6b` | Ollama | Lexia's semantic search (`EMBEDDING_MODEL`) | Re-embed with Lexia's `reindex_semantic_search` |
 | Qwen-Image 2.1 Turbo | ComfyUI | Socia's pictures of Luna | A few pictures by hand |
 | SigLIP 2 (`google/siglip2-base-patch16-224`) | Visia itself, GPU only | Visia's meaning search | Pinned in Visia's image; `backfill_metadata` re-embeds |
@@ -282,7 +281,7 @@ To change them, create a private `.env` from `.env.example`:
 
 ```dotenv
 POSTGRES_PASSWORD=replace-with-a-private-database-password
-CAPTION_MODEL=qwen3-vl:8b-instruct
+CAPTION_MODEL=huihui_ai/qwen3-vl-abliterated:8b-instruct
 CLAP_DEVICE=auto
 LUNAVISIA_API_URL=http://luna-visia-mcp:8000
 LUNAVIBIA_PUBLIC_BASE_URL=
@@ -315,7 +314,7 @@ docker compose up -d
 
 ### Caption model
 
-`CAPTION_MODEL` (`qwen3-vl:8b-instruct`, the model Visia and Lexia use) must be listed
+`CAPTION_MODEL` (`huihui_ai/qwen3-vl-abliterated:8b-instruct`, the model Visia, Lexia, Fiora and Luna Socia's photos use) must be listed
 in Sentia's `SENTIA_MODELS`. It never hears the audio: it writes the caption and tags
 from what CLAP heard and the measurements. Before changing it, compare the new model
 with the current one on the whole library: [`model_evaluations/`](model_evaluations/README.md)

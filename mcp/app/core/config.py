@@ -149,7 +149,7 @@ class AppConfig:
         parsed = urlparse(ollama_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise RuntimeError("OLLAMA_URL must be a valid HTTP(S) URL.")
-        caption_model = os.getenv("CAPTION_MODEL", "qwen3-vl:8b-instruct").strip()
+        caption_model = os.getenv("CAPTION_MODEL", "huihui_ai/qwen3-vl-abliterated:8b-instruct").strip()
         if not caption_model:
             raise RuntimeError("CAPTION_MODEL cannot be blank.")
         visia_api_url = os.getenv("LUNAVISIA_API_URL", cls.visia_api_url).strip().rstrip("/")

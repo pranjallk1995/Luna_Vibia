@@ -8,6 +8,14 @@ embedding), so both models get exactly the same input, through Vibia's own promp
 schema and settings. Nothing is written to the database. Results are kept out of git in
 `results/` (see `.gitignore`).
 
+## Last evaluation
+
+`results/2026-11-19_qwen3-vl-vs-qwen3-vl-abliterated/`: `qwen3-vl:8b-instruct` against
+`huihui_ai/qwen3-vl-abliterated:8b-instruct` on 25 tracks: CLAP caption match 0.580 → 0.573, tags grounded in the evidence 0.94 → 0.91 (it adds tempo and key as tags), no failures, 2.1 s a track. **Adopted**: about
+even here and better on Lexia's documents, so one vision model, the one Luna Socia uses for
+photos, now serves every app. `results/2026-11-10_qwen3-vl-vs-qwen3.5-9b/` compared
+`qwen3.5:9b`, which was not adopted.
+
 ## What is scored
 
 | Measure | What it shows |
@@ -29,7 +37,7 @@ C=luna_vibia-mcp-1
 docker exec $C mkdir -p /tmp/vibia_eval
 docker cp model_evaluations/run.py $C:/tmp/vibia_eval/
 docker cp model_evaluations/score.py $C:/tmp/vibia_eval/
-docker exec -e PYTHONPATH=/workspace/mcp $C python /tmp/vibia_eval/run.py old qwen3-vl:8b-instruct /tmp/vibia_eval/old.jsonl
+docker exec -e PYTHONPATH=/workspace/mcp $C python /tmp/vibia_eval/run.py old huihui_ai/qwen3-vl-abliterated:8b-instruct /tmp/vibia_eval/old.jsonl
 docker exec -e PYTHONPATH=/workspace/mcp $C python /tmp/vibia_eval/run.py new <model> /tmp/vibia_eval/new.jsonl
 docker exec -e PYTHONPATH=/workspace/mcp $C python /tmp/vibia_eval/score.py /tmp/vibia_eval
 docker cp $C:/tmp/vibia_eval model_evaluations/results/<date>_<old>-vs-<new>
