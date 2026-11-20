@@ -10,7 +10,7 @@
 ![Status: v1.7](https://img.shields.io/badge/Status-v1.7-2EA043)
 
 <p align="center">
-  <a href="docs/assets/luna-vibia-showcase.mp4"><img src="docs/assets/luna-vibia-showcase.webp" alt="From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia, then asking a chat assistant for a playlist through its MCP tools" width="900"></a>
+  <a href="docs/assets/luna-vibia-showcase.mp4"><img src="docs/assets/luna-vibia-showcase.webp" alt="From Google sign-in through Luna Unia to searching and opening tracks and browsing playlists in Luna Vibia, then asking a chat assistant for a playlist through its MCP tools" width="900"></a>
 </p>
 
 <p align="center"><em>From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia, then asking a chat assistant for a playlist through its MCP tools. Select it for the sharper video.</em></p>
