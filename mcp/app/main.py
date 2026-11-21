@@ -1,6 +1,7 @@
 """Compose and run the Luna Vibia MCP and HTTP server."""
 
 import logging
+import threading
 
 import uvicorn
 
@@ -16,6 +17,7 @@ from app.integrations.remote import TrackSourceResolver
 from app.data.repositories import TrackRepository, PublicURLRepository
 from app.services.application import VibiaService
 from app.services.starter import StarterLibrary
+from app.services.starter_pack import StarterPack
 from app.integrations.captioning import OllamaCaptioner
 from app.integrations.clap import IdleClapEncoder
 from app.integrations.speakers import OwnerSpeakers, SpeakerPlayer, WindowsSpeakerHelper
@@ -61,6 +63,15 @@ class LunaVibiaApplication:
         self.database.tenants.after_create = self.prepare_person
         # Anyone who joined earlier gets tracks chosen since.
         self.service.starter.deliver_to_everyone()
+        # A fresh install begins with the published starter tracks (see starter_pack.py).
+        pack = StarterPack(self.database, config.track_dir, set(config.allowed_formats), self.service.visible.covers)
+        if pack.decide(config.starter_pack_url):
+            threading.Thread(
+                target=pack.load_in_background,
+                args=(config.starter_pack_url, self.service.starter.deliver_to_everyone),
+                name="starter-pack",
+                daemon=True,
+            ).start()
         self.branding = ServerBranding(config.mcp_public_url)
         self.mcp = VibiaMCP(
             "Luna Vibia",

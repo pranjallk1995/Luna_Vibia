@@ -80,6 +80,24 @@ Everyone starts with the tracks the owner has chosen, as their own copy in their
 
 The owner chooses with the `set_starter_tracks` MCP tool. Everyone gets chosen tracks straight away, including people who joined earlier. Luna Visia's starter images work the same way.
 
+### Starter pack
+
+A fresh install begins with 24 AI-generated instrumentals, from café jazz and lo-fi to ambient, horror and workout tracks, each with its cover art. On its first start, Vibia downloads them from this repository's [`starter-pack-v1` release](https://github.com/pranjallk1995/Luna_Vibia/releases/tag/starter-pack-v1) (about 120 MB) and adds them to the owner's library as starter tracks, so everyone who signs in gets them too. They arrive with their captions, tags, credits, tempo, key and CLAP embeddings, so search, similarity order and suggested playlists work at once, without listening to each one.
+
+- Each cover is stored in this install's Luna Visia. Visia's own starter pack holds the same covers, and Visia answers identical bytes with the image it has, so none is stored twice. Storing covers needs `LUNAVISIA_COMPANION_TOKEN`, which has a localhost default; without it, the tracks load without covers.
+- It loads once. An install that already had tracks when it first started with this version never loads it, and neither does one that has loaded it before, even after the tracks are deleted.
+- A download that fails, or a Visia that cannot be reached yet, is tried again, up to ten times a minute apart, then on the next start.
+- Set `LUNAVIBIA_STARTER_PACK_URL` blank in `.env` to start with an empty library, or point it at a pack of your own.
+
+The pack holds the owner's starter tracks and their covers, and it is public, so choose only tracks you are happy for anyone to have. To make one from your own starter tracks:
+
+```bash
+docker compose exec mcp python -m app.services.starter_pack export /data/downloads/luna-vibia-starter-pack.zip
+docker compose cp mcp:/data/downloads/luna-vibia-starter-pack.zip .
+```
+
+The code is in `mcp/app/services/starter_pack.py`.
+
 In the code, `mcp/app/core/tenancy.py` holds who the current request or job acts for, `mcp/app/data/tenants.py` creates and removes each person's schema, and `mcp/app/transport/luna_mcp.py` checks connector tokens and the private token on `/api/` routes. Code that does not say who it acts for raises `NoUserError` rather than reading anyone's data.
 
 ## Architecture

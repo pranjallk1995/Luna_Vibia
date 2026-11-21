@@ -1387,7 +1387,8 @@ class VibiaService:
         rules = MetadataRules(config.max_tags, config.search_stop_words)
         storage = TrackStorage(config.track_dir, set(config.allowed_formats))
         urls = PublicURLService(public_urls)
-        urls.seed(config.public_base_url)
+        # Public links are served by this backend, so without a set address they start at it.
+        urls.seed(config.public_base_url or config.mcp_public_url)
         inspector = TrackInspector()
         showcase = ShowcaseSorter(tracks)
         indexer = TrackIndexer(storage, tracks, captioner, encoder, urls, inspector, rules)

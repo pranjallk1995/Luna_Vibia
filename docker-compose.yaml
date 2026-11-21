@@ -16,7 +16,9 @@ services:
       CAPTION_MODEL: ${CAPTION_MODEL:-huihui_ai/qwen3-vl-abliterated:8b-instruct}
       CLAP_DEVICE: ${CLAP_DEVICE:-auto}
       LUNAVISIA_API_URL: ${LUNAVISIA_API_URL:-http://luna-visia-mcp:8000}
-      LUNAVISIA_COMPANION_TOKEN: ${LUNAVISIA_COMPANION_TOKEN:-}
+      LUNAVISIA_COMPANION_TOKEN: ${LUNAVISIA_COMPANION_TOKEN:-lunavisia-companion-dev-token-for-localhost-only}
+      # A fresh install begins with the published starter tracks; set it blank to start empty.
+      LUNAVIBIA_STARTER_PACK_URL: ${LUNAVIBIA_STARTER_PACK_URL-https://github.com/pranjallk1995/Luna_Vibia/releases/download/starter-pack-v1/luna-vibia-starter-pack.zip}
       LUNAVIBIA_PLACEHOLDER_COVER_ID: ${LUNAVIBIA_PLACEHOLDER_COVER_ID:-}
       LUNAVIBIA_PUBLIC_BASE_URL: ${LUNAVIBIA_PUBLIC_BASE_URL}
       MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://localhost:18004}

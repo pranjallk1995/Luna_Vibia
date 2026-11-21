@@ -677,3 +677,95 @@ class StarterLibraryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StarterPackTests(unittest.TestCase):
+    """The pack a fresh install loads, with the database and Luna Visia faked."""
+
+    class Connection:
+        def __init__(self) -> None:
+            self.inserted: list[dict] = []
+            self.state = None
+
+        def execute(self, query, params=None):
+            from unittest import mock
+
+            result = mock.Mock()
+            if "vault_config" in query:
+                result.fetchone.return_value = {"public_base_url": "https://vibia.example"}
+            elif query.startswith("SELECT name FROM track_metadata"):
+                return [{"name": "Mine.mp3"}]
+            elif query.lstrip().startswith("INSERT INTO track_metadata"):
+                self.inserted.append(params)
+                result.fetchone.return_value = {"name": params["name"]}
+            elif query.lstrip().startswith("UPDATE starter_pack"):
+                self.state = params[0]
+            return result
+
+    def pack(self, directory: Path) -> Path:
+        import hashlib
+        import json
+        import zipfile
+
+        tracks = {"Rain.mp3": b"rain", "Mine.mp3": b"theirs", "Bad.mp3": b"bad"}
+        entries = []
+        for name, data in tracks.items():
+            entries.append({
+                "name": name, "size_bytes": len(data), "content_sha256": hashlib.sha256(data).hexdigest(),
+                "caption": "calm piano", "tags": ["piano"], "analysis_model": "m", "audio_format": "MP3",
+                "duration_seconds": 60.0, "sample_rate": 44100, "channels": 2, "bitrate": 192000,
+                "title": "Rain", "artist": "Luna Vibia", "notes": None, "tempo_bpm": 90.0,
+                "musical_key": "C major", "energy": 0.2, "embedding": "[0.5,0.5]", "showcase_rank": None,
+                "cover": "Rain_cover.png" if name == "Rain.mp3" else None,
+            })
+        entries[2]["content_sha256"] = hashlib.sha256(b"other").hexdigest()
+        path = directory / "pack.zip"
+        with zipfile.ZipFile(path, "w") as archive:
+            for name, data in tracks.items():
+                archive.writestr("tracks/" + name, data)
+            archive.writestr("covers/Rain_cover.png", b"cover")
+            archive.writestr("manifest.json", json.dumps({"app": "vibia", "format": 1, "tracks": entries}))
+        return path
+
+    def starter_pack(self, root: Path, companion_token: str):
+        from contextlib import contextmanager
+        from unittest import mock
+
+        from app.services.starter_pack import StarterPack
+
+        connection = self.Connection()
+        database = mock.Mock()
+
+        @contextmanager
+        def connect():
+            yield connection
+
+        database.connect = connect
+        covers = mock.Mock(companion_token=companion_token)
+        covers.store.return_value = {"status": "stored", "public_url": "https://visia.example/api/public/images/x"}
+        return StarterPack(database, root, {".mp3"}, covers), connection, covers
+
+    def test_loads_new_matching_tracks_with_their_covers_stored_in_visia(self) -> None:
+        import base64
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pack, connection, covers = self.starter_pack(root / "tracks", "token")
+            self.assertEqual(pack.load(self.pack(root)), 1)
+            row = connection.inserted[0]
+            self.assertEqual(row["name"], "Rain.mp3")
+            self.assertEqual(row["cover_url"], "https://visia.example/api/public/images/x")
+            self.assertTrue(row["public_url"].startswith("https://vibia.example/api/public/tracks/"))
+            name, tags, source = covers.store.call_args.args
+            self.assertEqual((name, tags), ("Rain_cover", ["luna vibia", "cover art", "rain"]))
+            self.assertEqual(base64.b64decode(source["content_base64"]), b"cover")
+            self.assertEqual((root / "tracks" / "u_owner" / "Rain.mp3").read_bytes(), b"rain")
+            self.assertEqual(connection.state, "loaded")
+
+    def test_loads_without_covers_when_visia_cannot_store_them(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pack, connection, covers = self.starter_pack(root / "tracks", "")
+            self.assertEqual(pack.load(self.pack(root)), 1)
+            self.assertIsNone(connection.inserted[0]["cover_url"])
+            covers.store.assert_not_called()

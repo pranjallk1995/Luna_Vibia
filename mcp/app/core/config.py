@@ -138,6 +138,8 @@ class AppConfig:
     speaker_helper_url: str = ""
     # Where CLAP runs: auto uses a CUDA GPU when present.
     clap_device: str = "auto"
+    # Where a fresh install downloads its starter tracks ("" = start with an empty library).
+    starter_pack_url: str = ""
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -187,7 +189,11 @@ class AppConfig:
         clap_device = os.getenv("CLAP_DEVICE", "auto").strip().lower()
         if clap_device not in cls.CLAP_DEVICES:
             raise RuntimeError(f"CLAP_DEVICE must be one of: {', '.join(sorted(cls.CLAP_DEVICES))}.")
+        starter_pack_url = os.getenv("LUNAVIBIA_STARTER_PACK_URL", "").strip()
+        if starter_pack_url and urlparse(starter_pack_url).scheme not in {"http", "https"}:
+            raise RuntimeError("LUNAVIBIA_STARTER_PACK_URL must be an HTTP(S) URL, or blank.")
         return cls(
+            starter_pack_url=starter_pack_url,
             clap_device=clap_device,
             speaker_helper_url=speaker_helper_url,
             mcp_public_url=mcp_public_url,

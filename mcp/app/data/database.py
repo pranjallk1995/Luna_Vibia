@@ -58,6 +58,14 @@ CREATE TABLE IF NOT EXISTS starter_received (
     source_track_id uuid PRIMARY KEY,
     received_at timestamptz NOT NULL DEFAULT now()
 );
+-- The starter pack a fresh install loads once: pending, loaded, or skipped (it had tracks).
+CREATE TABLE IF NOT EXISTS starter_pack (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    state text NOT NULL,
+    source text NOT NULL,
+    decided_at timestamptz NOT NULL DEFAULT now(),
+    loaded_at timestamptz
+);
 CREATE TABLE IF NOT EXISTS vault_security (
     singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
     password_salt bytea NOT NULL,
