@@ -432,6 +432,11 @@ not PowerShell. It removes that directory if it is empty, restarts WSLg's sound 
 recreates the MCP container, and it does nothing when audio already works. Add `--check` to
 only report. After changing `host/`, run `systemctl --user restart luna-vibia-speakers`.
 
+`luna.sh start` also starts `luna_vibia-speakers-1`, a container that only checks the helper's
+`/health` every 30 seconds, so `docker ps` shows whether the helper is up (healthy) or not
+(unhealthy). It is not waited for, so a stopped helper never holds Vibia up; with
+`LUNAVIBIA_SPEAKER_HELPER_URL` blank it exits at once.
+
 ### Add and change
 
 - `upload_track` - add MP3, WAV, FLAC, OGG/Opus, or M4A from a chat attachment (`file`), `track_url`, or `content_base64`, with optional `title`, `artist`, and generator `notes`, and cover art: a generated image as `cover_file`, `cover_url`, or `cover_content_base64` (stored in Luna Visia), or an existing Visia `cover_url`. Without one, the track gets the audio placeholder. Names are corrected and deduplicated like Visia's.

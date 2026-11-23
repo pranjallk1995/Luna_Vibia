@@ -117,6 +117,26 @@ services:
       mcp:
         condition: service_healthy
 
+  # The Windows speaker helper on the host (host/speaker_helper.py), as a row in `docker ps`.
+  # Only a health check: started by `luna.sh start` after the app (profile "host"), so a service that is
+  # down shows unhealthy in `docker ps` without stopping the app from starting. Blank LUNAVIBIA_SPEAKER_HELPER_URL: it exits.
+  speakers:
+    image: ghcr.io/pranjallk1995/luna-vibia-mcp:${LUNA_IMAGE_TAG:-v2.0.0}
+    profiles: ["host"]
+    network_mode: bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: on-failure
+    environment:
+      WATCH: ${LUNAVIBIA_SPEAKER_HELPER_URL:-}
+    entrypoint: ["sh", "-c", "test -n \"$$WATCH\" || exit 0; exec sleep infinity"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen(os.environ['WATCH'].rstrip('/') + '/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 2
+      start_period: 5s
+
 volumes:
   track_data:
     name: luna_vibia_track_data
