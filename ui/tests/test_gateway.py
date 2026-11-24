@@ -101,6 +101,14 @@ class AccessTests(GatewayTestCase):
 
 
 class CollectionTests(GatewayTestCase):
+    def test_tracks_keep_the_backends_order_not_the_files_dates(self):
+        # The backend sends the library's similarity order; b b.wav's newer file must not move it first.
+        import os
+        os.utime(self.track_dir / "a.mp3", ns=(1_000_000_000, 1_000_000_000))
+        os.utime(self.track_dir / "b b.wav", ns=(9_000_000_000, 9_000_000_000))
+        self.sign_in()
+        self.assertEqual([track["name"] for track in self.client.get("/app/tracks").json()["tracks"]], ["a.mp3", "b b.wav"])
+
     def test_lists_only_tracks_with_files_with_their_facts(self):
         self.sign_in()
         tracks = {track["name"]: track for track in self.client.get("/app/tracks").json()["tracks"]}

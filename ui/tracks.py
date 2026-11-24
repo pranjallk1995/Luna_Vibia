@@ -35,7 +35,8 @@ class TrackFiles:
         return UIConfig.AUDIO_TYPES[path.suffix.lower()]
 
     def collection(self, metadata: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Records with files on disk, newest first."""
+        """Records with files on disk, in the backend's order: the library's saved similarity order, or newest
+        first when it has none. (Sorting here by file date undid the similarity order on the page.)"""
         records = []
         for item in metadata:
             try:
@@ -43,7 +44,6 @@ class TrackFiles:
             except OSError:
                 continue
             records.append({**item, "size_bytes": stat.st_size, "version": stat.st_mtime_ns})
-        records.sort(key=lambda record: record["version"], reverse=True)
         return records
 
     # Covers
