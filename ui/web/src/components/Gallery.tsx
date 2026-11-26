@@ -164,7 +164,6 @@ export function Gallery({ section, layout, settings }: Props) {
   return (
     <>
       <div className="lv-gallery-tools">
-        <SearchBox label={COPY[section].label} value={query} count={data ? filtered.length : undefined} onChange={changeQuery} />
         <button
           className={`lv-button lv-select-toggle${selecting ? " lv-button-active" : ""}`}
           type="button"
@@ -175,6 +174,7 @@ export function Gallery({ section, layout, settings }: Props) {
           {selecting ? <X size={17} /> : <CheckSquare size={17} />}
           <span>{selecting ? "Done" : "Select"}</span>
         </button>
+        <SearchBox label={COPY[section].label} value={query} count={data ? filtered.length : undefined} onChange={changeQuery} />
       </div>
       {error && <p className="lv-alert lv-alert-error">{error.message}</p>}
       {isPending && <div className="lv-skeleton-grid" aria-label="Loading tracks" />}
