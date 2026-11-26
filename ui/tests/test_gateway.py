@@ -238,6 +238,12 @@ class BulkProxyTests(GatewayTestCase):
             self.assertEqual(self.backend_requests[-1].url.path, path)
             self.assertEqual(self.backend_requests[-1].extensions["timeout"]["read"], UIConfig.BATCH_TIMEOUT_SECONDS)
 
+    def test_a_new_cover_waits_while_visia_stores_it(self):
+        self.sign_in()
+        self.assertEqual(self.client.post("/api/tracks/a.mp3/cover-image", json={"content_base64": "AAAA"}).status_code, 200)
+        self.assertEqual(self.backend_requests[-1].url.path, "/api/tracks/a.mp3/cover-image")
+        self.assertEqual(self.backend_requests[-1].extensions["timeout"]["read"], UIConfig.UPLOAD_TIMEOUT_SECONDS)
+
     def test_hidden_batch_edits_wait_for_the_pin(self):
         self.sign_in()
         self.assertEqual(self.client.post("/api/hidden/tracks/metadata", json={}).status_code, 423)

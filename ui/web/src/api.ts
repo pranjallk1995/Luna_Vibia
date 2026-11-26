@@ -20,6 +20,8 @@ export type TrackRecord = {
   musical_key?: string | null;
   energy?: number | null;
   cover_url?: string | null;
+  /** art: its own cover; placeholder or none: it has none yet, and the card offers to add one. */
+  cover?: "art" | "placeholder" | "none";
   size_bytes: number;
   version: number;
 };
@@ -33,6 +35,8 @@ export type Settings = {
   name_max_chars: number;
   caption_max_chars: number;
   upload_types: string[];
+  cover_upload_types: string[];
+  cover_upload_size: [number, number];
 };
 
 export type MetadataChange = {
@@ -212,10 +216,17 @@ export function useTrackActions(section: Section, batchSize: number) {
     onSuccess: (saved, { name }) => merge(name, { cover_url: saved.cover_url }),
   });
 
+  // A picture from this device, stored in Luna Visia (captioned and tagged) and set as the cover.
+  const storeCover = useMutation({
+    mutationFn: ({ name, dataUrl }: { name: string; dataUrl: string }) =>
+      post<TrackRecord>(`/api/tracks/${segment(name)}/cover-image`, { content_base64: dataUrl.slice(dataUrl.indexOf(",") + 1) }),
+    onSuccess: (saved, { name }) => merge(name, { cover_url: saved.cover_url, cover: "art" }),
+  });
+
   return {
     setFavorite,
     remove: removeTrack,
-    hide, restore, rename, updateMetadata, setCover,
+    hide, restore, rename, updateMetadata, setCover, storeCover,
     setFavorites,
     removeMany,
     hideMany,

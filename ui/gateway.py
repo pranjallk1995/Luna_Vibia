@@ -37,7 +37,7 @@ PROXIED_ROUTES = tuple(
         ("POST", r"/api/volume"),
         ("POST", r"/api/tracks"),
         ("DELETE", rf"/api/tracks/{NAME}"),
-        ("POST", rf"/api/tracks/{NAME}/(rename|metadata|cover)"),
+        ("POST", rf"/api/tracks/{NAME}/(rename|metadata|cover|cover-image)"),
         ("POST", r"/api/favorites"),
         ("POST", r"/api/tracks/(delete|metadata)"),
         ("POST", r"/api/hidden/(hide|restore|delete)"),
@@ -156,6 +156,8 @@ class UIGateway:
                     "name_max_chars": UIConfig.NAME_MAX_CHARS,
                     "caption_max_chars": UIConfig.CAPTION_MAX_CHARS,
                     "upload_types": UIConfig.UPLOAD_TYPES,
+                    "cover_upload_types": UIConfig.COVER_UPLOAD_TYPES,
+                    "cover_upload_size": UIConfig.COVER_UPLOAD_SIZE,
                 },
             }
         )
@@ -288,7 +290,8 @@ class UIGateway:
 
     @staticmethod
     def timeout(path: str, uploading: bool) -> float:
-        if uploading:
+        # Storing a cover waits for Luna Visia to caption it.
+        if uploading or path.endswith("/cover-image"):
             return UIConfig.UPLOAD_TIMEOUT_SECONDS
         if BATCH_ROUTES.fullmatch(path):
             return UIConfig.BATCH_TIMEOUT_SECONDS

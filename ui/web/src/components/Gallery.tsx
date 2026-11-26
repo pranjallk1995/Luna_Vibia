@@ -194,6 +194,8 @@ export function Gallery({ section, layout, settings }: Props) {
                 selecting={selecting}
                 selected={selection.has(track.name)}
                 onSelect={onSelect}
+                actions={actions}
+                settings={settings}
               />
             ))}
           </div>

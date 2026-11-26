@@ -175,7 +175,8 @@ class VibiaHTTPRoutes:
         visible = self.service.visible
 
         async def metadata(request: Request):
-            return {"tracks": visible.list()}
+            # "cover" says whether a track has art of its own, or the placeholder or nothing.
+            return {"tracks": [{**row, "cover": visible.cover_kind(row.get("cover_url"))} for row in visible.list()]}
 
         async def public_track(request: Request):
             identifier = self.name(request)
@@ -204,6 +205,16 @@ class VibiaHTTPRoutes:
             return {
                 "status": "cover_updated",
                 **await anyio.to_thread.run_sync(visible.set_cover, self.name(request), payload.get("cover_url")),
+            }
+
+        async def store_cover(request: Request):
+            """The UI's "Add cover": an image stored in Luna Visia, then set as the track's cover."""
+            payload = await self.payload(request)
+            return {
+                "status": "cover_updated",
+                **await anyio.to_thread.run_sync(
+                    visible.update_cover, self.name(request), {"content_base64": payload.get("content_base64")}
+                ),
             }
 
         async def delete(request: Request):
@@ -237,6 +248,7 @@ class VibiaHTTPRoutes:
         self.route("POST", "/api/tracks/{name}/rename", rename)
         self.route("POST", "/api/tracks/{name}/metadata", update_metadata)
         self.route("POST", "/api/tracks/{name}/cover", set_cover)
+        self.route("POST", "/api/tracks/{name}/cover-image", store_cover)
 
     def _register_downloads(self) -> None:
         downloads = self.service.downloads

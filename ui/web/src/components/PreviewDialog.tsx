@@ -6,6 +6,7 @@ import { displayName, durationLabel, messageOf, normalizedTag, readableName, siz
 import { useNowPlaying } from "../nowPlaying";
 import { RepeatButton, useRepeat } from "../repeat";
 import { BrowserVolume, useSharedVolume } from "../volume";
+import { AddCover } from "./AddCover";
 import { useModal } from "./Dialog";
 import type { CardAction } from "./TrackCard";
 import { useToast } from "./Toasts";
@@ -178,7 +179,7 @@ type Props = {
   onClose: () => void;
 };
 
-function CoverEditor({ track, actions }: { track: TrackRecord; actions: TrackActions }) {
+function CoverEditor({ track, actions, settings }: { track: TrackRecord; actions: TrackActions; settings: Settings }) {
   const [editing, setEditing] = useState(false);
   const [url, setUrl] = useState(track.cover_url ?? "");
   const [error, setError] = useState("");
@@ -196,10 +197,13 @@ function CoverEditor({ track, actions }: { track: TrackRecord; actions: TrackAct
 
   if (!editing) {
     return (
-      <button className="lv-button lv-button-wide" type="button" onClick={() => setEditing(true)}>
-        <ImageIcon size={16} />
-        Cover art
-      </button>
+      <div className="lv-cover-actions">
+        <AddCover track={track} actions={actions} settings={settings} className="lv-button" label="Upload cover" />
+        <button className="lv-button" type="button" onClick={() => setEditing(true)}>
+          <ImageIcon size={16} />
+          Visia link
+        </button>
+      </div>
     );
   }
   return (
@@ -427,7 +431,7 @@ export function PreviewDialog({ track, position, total, next, section, settings,
               )}
             </dl>
           </section>
-          {section !== "hidden" && <CoverEditor key={track.cover_url ?? ""} track={track} actions={actions} />}
+          {section !== "hidden" && <CoverEditor key={track.cover_url ?? ""} track={track} actions={actions} settings={settings} />}
           <div className="lv-panel-actions">
             {section !== "hidden" && (
               <button

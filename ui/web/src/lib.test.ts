@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { needsCover } from "./components/AddCover";
+import type { TrackRecord } from "./api";
 
 import { displayName, readableName, tagSlot, visibleTags, durationLabel, matching, normalizedTag, pageCount, pageOf, sizeLabel, splitName, pageSlots } from "./lib";
 import { describePlayback } from "./playback";
@@ -101,5 +103,12 @@ describe("what cards show", () => {
 
   it("colours a tag the same everywhere", () => {
     expect(tagSlot("Lo  Fi")).toBe(tagSlot("lo fi"));
+  });
+});
+
+describe("needsCover", () => {
+  it("offers a cover for the placeholder or none, not for a track's own art", () => {
+    const track = (cover?: "art" | "placeholder" | "none") => ({ name: "a.mp3", cover }) as TrackRecord;
+    expect([needsCover(track("placeholder")), needsCover(track("none")), needsCover(track("art")), needsCover(track())]).toEqual([true, true, false, false]);
   });
 });

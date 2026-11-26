@@ -1,7 +1,8 @@
 import { Check, Download, Eye, EyeOff, Heart, MoreVertical, Trash2 } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 
-import { coverUrl, downloadUrl, type TrackRecord, type Section } from "../api";
+import { coverUrl, downloadUrl, type Settings, type TrackActions, type TrackRecord, type Section } from "../api";
+import { AddCover, needsCover } from "./AddCover";
 import { displayName, durationLabel, readableName, sizeLabel, visibleTags } from "../lib";
 
 export type CardAction = "open" | "favorite" | "delete" | "hide" | "restore";
@@ -17,6 +18,9 @@ type Props = {
   selecting: boolean;
   selected: boolean;
   onSelect: (track: TrackRecord, extend: boolean) => void;
+  /** Given for the library's own tracks: a card without cover art offers to add one. */
+  actions?: TrackActions;
+  settings?: Settings;
 };
 
 function CardMenu({ track, section, onAction }: Pick<Props, "track" | "section" | "onAction">) {
@@ -85,7 +89,7 @@ function CardMenu({ track, section, onAction }: Pick<Props, "track" | "section" 
   );
 }
 
-function TrackCardBase({ track, section, layout, onAction, selecting, selected, onSelect }: Props) {
+function TrackCardBase({ track, section, layout, onAction, selecting, selected, onSelect, actions, settings }: Props) {
   const name = readableName(track.name);
   const tags = visibleTags(track.tags);
   const hiddenTags = tags.length - TAGS_SHOWN[layout];
@@ -113,6 +117,9 @@ function TrackCardBase({ track, section, layout, onAction, selecting, selected, 
           <img src={coverUrl(track, "card")} alt="" width={420} height={280} loading="lazy" decoding="async" />
         </button>
         {selecting && <span className="lv-check">{selected && <Check size={15} strokeWidth={3} />}</span>}
+        {!selecting && section !== "hidden" && actions && settings && needsCover(track) && (
+          <AddCover track={track} actions={actions} settings={settings} className="lv-add-cover" label="Add cover" />
+        )}
         {!selecting && section !== "hidden" && (
           <button
             className={`lv-favorite${track.favorite ? " lv-favorite-active" : ""}`}

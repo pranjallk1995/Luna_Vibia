@@ -71,6 +71,9 @@ class UIConfig:
     COVER_QUALITY: ClassVar[int] = 80
     COVER_CACHE_ENTRIES: ClassVar[int] = 256
     COVER_TIMEOUT_SECONDS: ClassVar[float] = 5.0
+    # "Add cover" fits a chosen picture to 3:2 at this size before Luna Visia stores it.
+    COVER_UPLOAD_SIZE: ClassVar[tuple[int, int]] = (1536, 1024)
+    COVER_UPLOAD_TYPES: ClassVar[tuple[str, ...]] = ("jpg", "jpeg", "png", "webp")
     # Cover and file URLs carry what they show, so they never go stale.
     IMMUTABLE_CACHE_CONTROL: ClassVar[str] = "private, max-age=31536000, immutable"
     # A cover Luna Visia could not give just now is asked for again soon.

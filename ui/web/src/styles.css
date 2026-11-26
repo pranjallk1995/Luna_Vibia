@@ -1737,3 +1737,10 @@ html:has(.lv-bulk) .lv-toasts {
     display: none;
   }
 }
+
+/* "Add cover" on a track that still shows the placeholder: always visible, bottom left of its art */
+.lv-add-cover { position: absolute; left: 0.5rem; bottom: 0.5rem; display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2rem; padding: 0.2rem 0.65rem; border: 1px solid var(--lv-strong); border-radius: 999px; background: rgba(17, 17, 17, 0.82); color: #f8fafc; font-size: var(--luna-text-small, 0.72rem); cursor: pointer; }
+.lv-add-cover:hover, .lv-add-cover:focus-visible { background: rgba(17, 17, 17, 0.96); border-color: #f8fafc; }
+.lv-add-cover[aria-busy="true"] { cursor: progress; }
+.lv-cover-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.lv-cover-actions .lv-button { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; }

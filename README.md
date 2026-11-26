@@ -231,6 +231,8 @@ locked their files and covers are refused too.
 
 ## Cover art from Luna Visia
 
+On the page, a track that still shows the placeholder has an **Add cover** button on its art, and every track's dialog has **Upload cover**. Choose a picture and Vibia fits it to 3:2, stores it in Luna Visia (tagged `cover art`, `luna vibia`, and the track's name), and sets it as the cover. Storing waits while Visia captions it.
+
 When a model generates a song for Vibia, it uploads the song first and generates cover art afterwards: it calls `upload_track` as soon as the music exists, then passes the art to `update_track_cover`. The server's MCP instructions, the tool's description, and the upload's `cover_hint` all ask for this order, because generating an image can end the model's turn. If that happens, the song is already saved with the placeholder, and asking the model to continue sets the cover. An upload retried as a duplicate that still has the placeholder asks for the art again.
 
 Art the model already has can go in the upload itself, as `cover_file`, `cover_url`, or `cover_content_base64`. If it cannot be stored, the track stays saved with the placeholder and the result's `cover_error` says to retry with `update_track_cover`. Uploads through `create_upload_link` also return a `cover_hint`.
