@@ -130,7 +130,8 @@ the GPU and keeps Socia's chat model resident, to its Ollama. Socia's pictures c
 Sentia's image service (Qwen-Image 2.1 with diffusers), which takes turns with Ollama on the GPU. Visia's SigLIP 2, Vibia's CLAP
 and Lexia's Docling run inside those apps instead, each in a process that exits when idle.
 Orange lines are Visia image URLs that other apps use: food images for Vita, room images
-for Lumia, and cover art for Vibia. Grey dashed lines are planned: links into Fiora (tax
+for Lumia, and cover art for Vibia. The rose line is lab reports: Vita reads the health reports Lexia stores,
+with their results and PDFs, for its Health reports page. Grey dashed lines are planned: links into Fiora (tax
 details from Lexia, transaction image and icon URLs from Visia). Luna Unia is the one home
 for the other apps, on port 42069: it checks which Luna stacks are running and opens each
 one with the shared sign-in. The purple line is the mood and beats of the track Vibia
