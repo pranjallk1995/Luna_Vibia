@@ -9,6 +9,7 @@ export type Section = "view" | "favorites" | "hidden";
 
 export type TrackRecord = {
   name: string;
+  updated_at?: string | null;
   caption?: string | null;
   tags?: string[] | null;
   favorite?: boolean;

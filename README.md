@@ -381,6 +381,7 @@ later, while Docling finishes its document, then runs that call on the CPU.
 
 - `search_tracks` - rank tracks for a description ("upbeat electronic for a run"), with optional tags and length limits.
 - `suggest_playlist` - a looping playlist for a mood or moment, about `minutes` long, without near-duplicates.
+- **Web UI:** the **Sort** menu beside the search box orders the library by similarity (the default), newest or oldest, title, artist, length, tempo, or file size; the browser remembers the choice.
 - `sort_tracks` - arrange the library: `order="similarity"` saves an order where neighbors sound alike, by the cosine similarity of their CLAP embeddings, and new tracks are slotted in beside their closest match; `order="newest"` clears it.
 - `list_tracks` - visible tracks in the saved order or newest first, with captions, facts, `cover_url`, and playable `public_url`.
 - `get_track_url` - the playable public URL of one track.
