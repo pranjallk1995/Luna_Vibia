@@ -1,7 +1,7 @@
 services:
   mcp:
     build: ./mcp
-    image: ghcr.io/pranjallk1995/luna-vibia-mcp:${LUNA_IMAGE_TAG:-v2.1.1}
+    image: ghcr.io/pranjallk1995/luna-vibia-mcp:${LUNA_IMAGE_TAG:-v2.1.2}
     working_dir: /workspace/mcp
     restart: unless-stopped
     # CLAP runs on the GPU (CLAP_DEVICE=auto picks it when present). Remove this line
@@ -66,7 +66,7 @@ services:
 
   ui:
     build: ./ui
-    image: ghcr.io/pranjallk1995/luna-vibia-ui:${LUNA_IMAGE_TAG:-v2.1.1}
+    image: ghcr.io/pranjallk1995/luna-vibia-ui:${LUNA_IMAGE_TAG:-v2.1.2}
     working_dir: /workspace/ui
     restart: unless-stopped
     environment:
@@ -121,7 +121,7 @@ services:
   # Only a health check: started by `luna.sh start` after the app (profile "host"), so a service that is
   # down shows unhealthy in `docker ps` without stopping the app from starting. Blank LUNAVIBIA_SPEAKER_HELPER_URL: it exits.
   speakers:
-    image: ghcr.io/pranjallk1995/luna-vibia-mcp:${LUNA_IMAGE_TAG:-v2.1.1}
+    image: ghcr.io/pranjallk1995/luna-vibia-mcp:${LUNA_IMAGE_TAG:-v2.1.2}
     profiles: ["host"]
     network_mode: bridge
     extra_hosts:
