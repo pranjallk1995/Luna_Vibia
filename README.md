@@ -471,6 +471,91 @@ only report. After changing `host/`, run `systemctl --user restart luna-vibia-sp
 
 ## Data model
 
+### Database diagram
+
+Each person's schema (`u_<id>` in the `lunavibia` database) holds these tables, drawn from the live database. Lines are foreign keys; a table without one is joined by value (a name, a date, an ID kept as text). `PK` marks primary keys, `FK` foreign keys, `UK` unique columns.
+
+```mermaid
+erDiagram
+    playlist_tracks {
+        uuid playlist_id PK, FK
+        uuid track_id PK, FK
+        int4 position
+        timestamptz added_at
+    }
+    playlists {
+        uuid playlist_id PK
+        text name
+        text description
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    starter_pack {
+        bool singleton PK
+        text state
+        text source
+        timestamptz decided_at
+        timestamptz loaded_at
+    }
+    starter_received {
+        uuid source_track_id PK
+        timestamptz received_at
+    }
+    track_beats {
+        bpchar content_sha256 PK
+        float4 tempo_bpm
+        float4_array beats
+        float4_array strengths
+        timestamptz created_at
+    }
+    track_metadata {
+        text name PK
+        uuid track_id
+        int8 size_bytes
+        bpchar content_sha256
+        text caption
+        text_array tags
+        text analysis_model
+        text audio_format
+        float4 duration_seconds
+        int4 sample_rate
+        int4 channels
+        int4 bitrate
+        text title
+        text artist
+        text notes
+        float4 tempo_bpm
+        text musical_key
+        float4 energy
+        text cover_url
+        vector embedding
+        timestamptz created_at
+        timestamptz updated_at
+        tsvector search_vector
+        bool hidden
+        bool favorite
+        text public_url
+        int4 showcase_rank
+        bool starter
+    }
+    vault_config {
+        bool singleton PK
+        text public_base_url
+        timestamptz updated_at
+    }
+    vault_security {
+        bool singleton PK
+        bytea password_salt
+        bytea password_hash
+        bytea reset_pin_salt
+        bytea reset_pin_hash
+        int4 iterations
+        timestamptz updated_at
+    }
+    playlists ||--o{ playlist_tracks : "playlist_id"
+    track_metadata ||--o{ playlist_tracks : "track_id"
+```
+
 `track_metadata` holds one row per track: name, immutable `track_id`, size and SHA-256,
 caption and tags, title, artist, generator notes, format, duration, sample rate,
 channels, bitrate, tempo, key, energy, `cover_url`, the CLAP `embedding` (pgvector, HNSW
