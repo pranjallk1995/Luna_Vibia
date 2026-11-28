@@ -1,262 +1,43 @@
 # Luna Vibia
 
 ![Docker required](https://img.shields.io/badge/Docker-required-2496ED?logo=docker&logoColor=white)
-![Docker Compose v2](https://img.shields.io/badge/Docker_Compose-v2-2496ED?logo=docker&logoColor=white)
 ![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
-![Luna Sentia required](https://img.shields.io/badge/Luna_Sentia-required-111111?logo=ollama&logoColor=white)
-![PostgreSQL in Luna Sentia](https://img.shields.io/badge/PostgreSQL-in_Luna_Sentia-4169E1?logo=postgresql&logoColor=white)
+![Luna Sentia required](https://img.shields.io/badge/Luna_Sentia-required-6C5CE7?logo=docker&logoColor=white)
 ![CLAP included](https://img.shields.io/badge/CLAP-included-FFD21E?logo=huggingface&logoColor=black)
 ![NVIDIA GPU optional](https://img.shields.io/badge/NVIDIA_GPU-optional-76B900?logo=nvidia&logoColor=white)
 ![Status: v2.0](https://img.shields.io/badge/Status-v2.0-2EA043)
 
-<p align="center">
-  <a href="docs/assets/luna-vibia-showcase.mp4"><img src="docs/assets/luna-vibia-showcase.webp" alt="From Google sign-in through Luna Unia to searching and opening tracks and browsing playlists in Luna Vibia, then asking a chat assistant for a playlist through its MCP tools" width="900"></a>
-</p>
-
-<p align="center"><em>From Google sign-in through Luna Unia to searching and opening tracks in Luna Vibia, then asking a chat assistant for a playlist through its MCP tools. Select it for the sharper video.</em></p>
-
-## Store, describe, and find music with LLMs
-
-> Luna Vibia is a local-first music library. It can play its tracks on the host's speakers
-> when an LLM asks.
-
-Luna Vibia is the music counterpart of [Luna Visia](https://github.com/pranjallk1995/Luna_Visia)
-(images) and [Luna Lexia](https://github.com/pranjallk1995/Luna_Lexia) (documents). An
-assistant that generates music stores it here; every track is listened to, measured,
-captioned, and tagged locally, and embedded so that a request such as "something for
-evening coffee" finds the tracks that sound right, even when no stored word matches.
-The listening is done by [CLAP](https://huggingface.co/laion/clap-htsat-unfused)
-(`laion/clap-htsat-unfused`), a model that puts music and text in one embedding space.
-It ships inside Vibia's image, so there is nothing to install. It uses an NVIDIA GPU
-when there is one and the CPU otherwise; Luna Sentia's model writes only the captions.
-Cover art comes from Luna Visia.
+**A private music library that listens to every track.** Store the music your AI assistant generates; Vibia hears
+each track, captions and tags it, and finds what fits a request like "something for evening coffee", even when no
+word matches. It plays in the browser or, when your assistant asks, on the host's speakers.
 
 <p align="center">
-  <img src="docs/showcase.png" alt="Luna Vibia library playing a looped sleep playlist on an Echo Dot, started from a chat assistant">
+  <a href="docs/assets/luna-vibia-showcase.mp4"><img src="docs/assets/luna-vibia-showcase.webp" alt="Searching and opening tracks and browsing playlists in Luna Vibia, then asking a chat assistant for a playlist" width="900"></a>
 </p>
 
-## Models
+<p align="center"><em>Searching and opening tracks, then an assistant making a playlist. Select it for the sharper
+video.</em></p>
 
-| Part | Model | Where it runs | Before changing it |
-| --- | --- | --- | --- |
-| Captions and tags | `CAPTION_MODEL` (default `huihui_ai/qwen3-vl-abliterated:8b-instruct`, text only), 16k context | Sentia's Ollama, on the GPU | Compare it on every stored track with [`model_evaluations/`](model_evaluations/README.md); afterwards `backfill_metadata` re-captions tracks made by another model |
-| Listening and search | CLAP (`laion/clap-htsat-unfused`, `CLAP_MODEL` in `mcp/app/core/config.py`) | Here, on the GPU when there is one (`CLAP_DEVICE`), in its own process | Pinned in the image; a new CLAP needs every track heard again, and the caption evaluation scores with it, so compare captions before and after by hand |
+## What it does
 
-`CAPTION_MODEL` must be in Sentia's `SENTIA_MODELS`; Sentia's
-[Changing a model](https://github.com/pranjallk1995/Luna_Sentia#changing-a-model) lists every check to run first.
+- **Listens to every upload** with [CLAP](https://huggingface.co/laion/clap-htsat-unfused): tempo, key, energy, moods,
+  genres and instruments, then a local model writes the caption and tags.
+- **Search by sound or words**, ranked by what the music sounds like and what it is called.
+- **Playlists:** saved and reordered, with shuffle and repeat; or ask for a mood and get a looping playlist.
+- **A player that stays** above every tab while you browse, with one remembered volume.
+- **Cover art** for every track, with its title on it; add your own with **Add cover**, or let your assistant
+  generate one.
+- **Play on the host's speakers** (an Echo Dot, say) from chat, with volume and speaker switching.
+- **Work on many at once**, sort by relevance, date, name or size, and keep hidden tracks behind your PIN.
 
-## The model outside Ollama
-
-Besides the models it calls through Ollama, Luna Vibia runs one of its own, inside its
-backend: CLAP (`laion/clap-htsat-unfused`), which hears each track and turns it, and every search, into an embedding, with mood hints for the caption model. It runs on the GPU when there is one, with a CPU copy as a last resort, in its own process, which exits after `GPU_MODEL_IDLE_SECONDS` (120) unused so the GPU is fully free again for Luna Sentia's resident chat model.
-
-Its calls never pass through [Luna Sentia's model monitor](https://github.com/pranjallk1995/Luna_Sentia#model-monitor), so the app counts them itself: whether the model is
-loaded and on which device, its calls, failures, and busy time since the app started,
-and the GPU memory this process holds (from torch, since WSL cannot split VRAM by
-process). `GET /api/models` reports them, for the owner only, and the monitor's **Inside
-the apps** card asks every ten seconds.
-
-## Users and separate storage
-
-Each person signs in with Google and has their own space in Luna Vibia: the schema `u_<id>` in the `lunavibia` database, and the folder `u_<id>` in the `luna_vibia_track_data` volume. It is created the first time they use the app. The owner adds, disables, and deletes people at Luna Sentia's `/admin`, and can hide this app from everyone else there; see [Users and separate storage](https://github.com/pranjallk1995/Luna_Sentia#users-and-separate-storage).
-
-### Connecting an MCP client
-
-Add `https://<your vibia MCP host>/mcp` to your client, such as Claude or ChatGPT, as a custom connector using OAuth. The client signs you in with Google and shows an approval page; check the return address, then allow it. Its tools then act only on your data. A request without a valid token gets 401.
-
-### The speakers belong to the owner
-
-Only the owner can play on the host's speakers or change their volume, and nobody else can see what is playing. Everyone else has their own library, and their covers are stored in their own Luna Visia gallery. If the speakers are all you use it for, consider hiding Vibia from everyone else.
-
-### Starter library
-
-Everyone starts with the tracks the owner has chosen, as their own copy in their own library. They can rename or delete a copy without touching anyone else's. Copies take no extra disk space, because the files are hard links on one volume and every change to a stored track replaces its file rather than writing into it. Each copy has its own ID and public link, and keeps its caption, tags, cover, and listening embedding, so search and similarity order work straight away.
-
-- Hidden tracks and favorites are never included.
-- New uploads are not included unless the owner chooses them, so they stay private.
-- Each track is given once: a copy someone deleted does not come back, and a name they already use keeps their own track.
-- Later changes to the owner's original do not reach existing copies, and taking a track out of the library does not remove copies people already have.
-- Playlists are not copied.
-
-The owner chooses with the `set_starter_tracks` MCP tool. Everyone gets chosen tracks straight away, including people who joined earlier. Luna Visia's starter images work the same way.
-
-### Starter pack
-
-A fresh install begins with 24 AI-generated instrumentals, from café jazz and lo-fi to ambient, horror and workout tracks, each with its cover art. On its first start, Vibia downloads them from this repository's [`starter-pack-v1` release](https://github.com/pranjallk1995/Luna_Vibia/releases/tag/starter-pack-v1) (about 120 MB) and adds them to the owner's library as starter tracks, so everyone who signs in gets them too. They arrive with their captions, tags, credits, tempo, key and CLAP embeddings, so search, similarity order and suggested playlists work at once, without listening to each one.
-
-- Each cover is stored in this install's Luna Visia. Visia's own starter pack holds the same covers, and Visia answers identical bytes with the image it has, so none is stored twice. Storing covers needs `LUNAVISIA_COMPANION_TOKEN`, which has a localhost default; without it, the tracks load without covers.
-- It loads once. An install that already had tracks when it first started with this version never loads it, and neither does one that has loaded it before, even after the tracks are deleted.
-- A download that fails, or a Visia that cannot be reached yet, is tried again, up to ten times a minute apart, then on the next start.
-- Set `LUNAVIBIA_STARTER_PACK_URL` blank in `.env` to start with an empty library, or point it at a pack of your own.
-
-The pack holds the owner's starter tracks and their covers, and it is public, so choose only tracks you are happy for anyone to have. To make one from your own starter tracks:
-
-```bash
-docker compose exec mcp python -m app.services.starter_pack export /data/downloads/luna-vibia-starter-pack.zip
-docker compose cp mcp:/data/downloads/luna-vibia-starter-pack.zip .
-```
-
-The code is in `mcp/app/services/starter_pack.py`.
-
-In the code, `mcp/app/core/tenancy.py` holds who the current request or job acts for, `mcp/app/data/tenants.py` creates and removes each person's schema, and `mcp/app/transport/luna_mcp.py` checks connector tokens and the private token on `/api/` routes. Code that does not say who it acts for raises `NoUserError` rather than reading anyone's data.
-
-## Architecture
-
-### Luna ecosystem
-
-![Luna ecosystem architecture](docs/luna-ecosystem.svg)
-
-<!-- luna-models:start -->
-**Which app uses which model.** All of them run on Luna Sentia, which keeps Socia's chat model on the GPU and lets the others visit; see its [Models](https://github.com/pranjallk1995/Luna_Sentia#models) and [Changing a model](https://github.com/pranjallk1995/Luna_Sentia#changing-a-model).
-
-| Model | Served by | Used by | Before changing it |
-| --- | --- | --- | --- |
-| `huihui_ai/qwen3-vl-abliterated:8b-instruct` (Qwen3-VL 8B, uncensored) | Ollama, at 16k context for every app; in Socia's chat model's place while Luna looks at a photo | Lexia (`DOCUMENT_MODEL`), Visia (`VISION_MODEL`), Vibia (`CAPTION_MODEL`), Fiora (`OLLAMA_MODEL`), Socia's photo replies (`LUNASOCIA_VISION_MODEL`) | `model_checks/check_model.py`, then Lexia's, Visia's and Vibia's `model_evaluations/` and Socia's cat game |
-| `huihui_ai/qwen3-abliterated:8b` (Qwen3 8B, uncensored) | Ollama, resident at `SENTIA_RESIDENT_CONTEXT` | Socia's chat (`LUNASOCIA_CHAT_MODEL`) | `model_checks/check_model.py --context 8192`, then Socia's `model_evaluations/` |
-| `qwen3-embedding:0.6b` (Qwen3-Embedding 0.6B) | Ollama, resident beside Socia's chat model (1 GB, at 4k) | Lexia's semantic search (`EMBEDDING_MODEL`); what Socia remembers by herself, and the lines of her memory a message is about (`LUNASOCIA_EMBED_MODEL`) | Re-embed with Lexia's `reindex_semantic_search`; train Socia's neurons again (her notebook 03, Part B) |
-| Qwen-Image 2.1 Turbo (4-bit text encoder, int8 diffusion model) | Sentia's imagegen (diffusers), GPU, one picture at a time | Socia's pictures of Luna | A few pictures by hand |
-| SigLIP 2 (`google/siglip2-base-patch16-224`) | Visia itself, GPU only | Visia's meaning search | Pinned in Visia's image; `backfill_metadata` re-embeds |
-| CLAP (`laion/clap-htsat-unfused`) | Vibia itself, GPU or CPU | Vibia's listening and search | Pinned in Vibia's image; every track is heard again |
-| Docling (layout, tables, OCR) | Lexia itself, GPU or CPU | Lexia's page reading | Pinned in Lexia's image |
-| Whisper `large-v3-turbo`, Kokoro 82M | Socia itself, GPU (about 1.5 GB, and 0.2 GB for CUDA, loaded at start) or CPU | Socia's voice messages and Luna's voice (`LUNASOCIA_STT_MODEL`, `LUNASOCIA_TTS_VOICE`, `LUNASOCIA_VOICE_DEVICE`) | Listen to a few replies; downloaded on first use |
-| InsightFace `buffalo_l` (SCRFD, ArcFace) | Socia itself, GPU (about 0.4 GB, loaded with the vision model for a photo) or CPU | Whose faces are in a photo, Luna's or the owner's, told to her vision model | Socia's `model_evaluations/self_recognition.py`; non-commercial licence |
-<!-- luna-models:end -->
-
-Every Luna app but Luna Socia is a React UI plus a FastMCP service on Luna Sentia's
-`luna_sentia_network`; Socia, the owner's chat with Luna, is one service with no MCP
-server of its own. Each app's data lives in Sentia's PostgreSQL, people sign in through Sentia's
-`auth`, and model calls go through Sentia's model monitor, which times each one, samples
-the GPU and keeps Socia's chat model resident, to its Ollama. Socia's pictures come from
-Sentia's image service (Qwen-Image 2.1 with diffusers), which takes turns with Ollama on the GPU. Visia's SigLIP 2, Vibia's CLAP
-and Lexia's Docling run inside those apps instead, each in a process that exits when idle.
-Orange lines are Visia image URLs that other apps use: food images for Vita, room images
-for Lumia, and cover art for Vibia. The rose line is lab reports: Vita reads the health reports Lexia stores,
-with their results and PDFs, for its Health reports page. Grey dashed lines are planned: links into Fiora (tax
-details from Lexia, transaction image and icon URLs from Visia). Luna Unia is the one home
-for the other apps, on port 42069: it checks which Luna stacks are running and opens each
-one with the shared sign-in. The purple line is the mood and beats of the track Vibia
-plays, which Lumia's lights follow. The green line is Socia using every app's MCP tools,
-and Sentia's, as the owner: it signs in to them with OAuth like any MCP client, so Luna can
-play music, dim the lights or find a photo from the chat.
-
-| Component | Technology | Purpose |
-| --- | --- | --- |
-| UI (`luna-vibia-ui`, `:18504`) | React + TypeScript (Vite), served by a Starlette gateway | Gallery and list views, track dialog with player, 4.5:3 cover, and inline editing |
-| MCP (`luna-vibia-mcp`, `:18004`) | FastMCP + REST, LangGraph | Upload, analysis, search, playlists, covers; the UI calls it with a bearer token |
-| Listening | CLAP (GPU or CPU), librosa, ffprobe | Embedding, matched moods and instruments, tempo, key, energy |
-| Captions | Sentia's Ollama (`CAPTION_MODEL`, text only) | Caption and tags from what CLAP heard and the measurements |
-| Storage | Sentia's PostgreSQL (`lunavibia`, pgvector) and a track volume | Metadata, embeddings, full-text index; the audio files |
-| Covers | Luna Visia | Images by immutable ID URL, fetched over `luna_sentia_network` |
-
-## How a track is processed
-
-```text
-Upload (UI, MCP tool, upload link, or HTTP API)
-  -> measure    ffprobe: format, duration, embedded tags; librosa: tempo, key, energy
-  -> listen     CLAP (laion/clap-htsat-unfused, GPU or CPU): one embedding for the sound, plus
-                the moods, genres, instruments, and settings it matches
-  -> provenance tags naming an AI generator (Suno, Udio, Lyria, MusicGen, ...) -> "ai info"
-  -> describe   Luna Sentia's model (Qwen3-VL, text only) writes a caption and tags from
-                what CLAP heard, the measurements, and any title, artist, or generator notes
-  -> store      the file in the track volume; metadata and the embedding in PostgreSQL
-```
-
-The steps run as a LangGraph graph (`mcp/app/services/analysis_graph.py`): listen and
-the provenance check run in parallel after measuring. The caption model never hears
-the audio; it turns the evidence into words, and is told to keep only matches that
-agree with each other and the measurements.
-
-- **CLAP** maps music and text into one 512-dimensional space. A track is heard as up
-  to six 10-second clips spread over its length, whose embeddings are averaged. It
-  runs on the GPU when there is one and on the CPU otherwise (see
-  [GPU listening](#gpu-listening-optional)); the weights are baked into the image.
-- **Generator notes** are the strongest signal: when an assistant generated the music,
-  it should pass the prompt or style it used as `notes` with the upload. They are stored
-  and used for the caption.
-
-## Search and playlists
-
-Search embeds the request with CLAP's text side and ranks every visible track by its
-cosine similarity to the sound, blended with the full-text rank of its name, caption,
-title, artist, and tags (75% meaning, 25% words; `SEMANTIC_WEIGHT` in
-`mcp/app/core/config.py`). Tags and minimum or maximum length narrow the results.
-
-`suggest_playlist` turns a mood into a looping playlist: it takes the 60 best matches,
-drops those well below the best one, then picks tracks one at a time by how well they
-fit minus how much they sound like the tracks already picked, until the requested
-length is filled. With too little fitting music it returns a shorter playlist and says
-to loop it. Nothing is saved until it is passed to `create_playlist`.
-
-## Selecting many tracks
-
-**Select** in the web UI picks many tracks across pages and searches: click, shift-click
-a range, or **Select all**. A bar then favorites, unfavorites, hides, restores, or deletes
-them together, or edits them together: add and remove tags, find and replace text in
-descriptions, or give them all one description. Tracks that could not be changed are
-reported and stay selected. These requests send at most 100 tracks each to
-`POST /api/tracks/delete`, `/api/tracks/metadata`, `/api/hidden/delete`, and
-`/api/hidden/tracks/metadata`, each track applied on its own, with per-track errors under
-`failed`.
-
-## Playlists
-
-Playlists are saved, named, ordered lists of tracks, in the **Playlists** tab and through
-the playlist tools below. They hold tracks by `track_id`, so renaming a track keeps it in
-place and deleting one takes it out. A hidden track drops out of every playlist while
-hidden and comes back at the end when it is shown again. Names are unique whatever their
-case.
-
-The tab plays a playlist in the browser. **Shuffle** plays it in a random order without
-changing the saved order, and **Repeat** cycles off, all (start again after the last
-track), and one (play the current track again). The track view has the same Repeat:
-all carries on to the next track and round to the first. Rows move up and down, come
-out, or play from that track, and **Add tracks** picks from the library by name or tag.
-On the host's speakers, `play_playlist` takes `shuffle` and `loop`.
-
-The player belongs to the page, not the tab: it sits above every tab, stuck to the top,
-and keeps playing while you browse. Closing a track view while its song plays hands the
-song to the same player, which carries on from that second with the tracks after it.
-Hidden tracks stop instead. Starting a song in a track view stops the page's player, so
-two never play at once. One **volume** slider, remembered between visits, sets both the
-page's player and the track view. The owner also gets a slider and mute button for the
-host speakers, beside the line that says what is playing on them; it changes that
-speaker's own volume, as `set_volume` does, and nobody else can use it.
-
-## Hidden tracks
-
-Hidden tracks are never reachable through MCP tools or playlists. In the web UI they
-wait for your [hidden-items PIN](https://github.com/pranjallk1995/Luna_Sentia#hidden-items-pin):
-it unlocks them until you leave the tab or stay idle for 10 minutes, and while they are
-locked their files and covers are refused too.
-
-## Cover art from Luna Visia
-
-On the page, a track that still shows the placeholder has an **Add cover** button on its art, and every track's dialog has **Upload cover**. Choose a picture and Vibia fits it to 3:2, stores it in Luna Visia (tagged `cover art`, `luna vibia`, and the track's name), and sets it as the cover. Storing waits while Visia captions it.
-
-When a model generates a song for Vibia, it uploads the song first and generates cover art afterwards: it calls `upload_track` as soon as the music exists, then passes the art to `update_track_cover`. The server's MCP instructions, the tool's description, and the upload's `cover_hint` all ask for this order, because generating an image can end the model's turn. If that happens, the song is already saved with the placeholder, and asking the model to continue sets the cover. An upload retried as a duplicate that still has the placeholder asks for the art again.
-
-Art the model already has can go in the upload itself, as `cover_file`, `cover_url`, or `cover_content_base64`. If it cannot be stored, the track stays saved with the placeholder and the result's `cover_error` says to retry with `update_track_cover`. Uploads through `create_upload_link` also return a `cover_hint`.
-
-Models copy a music link by retyping it, which can garble a long signed link. Vibia rejects a Google Storage link whose signature is malformed before downloading it, and when a host refuses a link, the error tells the model to copy it again rather than generate the music again. Signed links are left out of errors and logs, which name each tool called and any failed upload.
-
-To generate cover art, ask in chat (for example "make a cover for Midnight_Cafe"). A model that can generate images creates one, with the song's title written clearly on it, and passes it to `update_track_cover`. Every cover shows its song's title: the server's instructions, the tool descriptions, and the `cover_hint` (which names the title) all ask for it. Luna Vibia sends it to Luna Visia, which stores, captions, and tags it (`cover art`, `luna vibia`, the track's name), then sets Visia's stable public URL as the cover. If Visia cannot store the image, the cover stays as it was. A retried call with the same image returns the stored copy instead of a duplicate. Uploads without a cover get a `cover_hint` that asks for generated art. Storing covers needs `LUNAVISIA_COMPANION_TOKEN`, set to the same value here and in Luna Visia.
-
-A track's cover is an image stored in Luna Visia. `set_track_cover` (or **Cover art**
-in a track's dialog) accepts only Visia's immutable image-ID URLs
-(`.../api/public/images/<image-id>`), checks that the image exists and is visible in
-Visia, tags it `luna vibia` and `cover art` there, and stores Visia's canonical public URL.
-Every Visia image Vibia uses, the placeholder included, carries those tags, so
-`search_images(tags=["luna vibia"])` in Visia lists every cover. An image Luna Vita uses
-(tagged `luna vita`) is refused, since food photos never show a track's title. A linked
-image must already show the track's title; when there is none, it omits the URL and the track gets the Luna Vibia audio placeholder, an image stored in Visia itself (set its image ID
-with `LUNAVIBIA_PLACEHOLDER_COVER_ID`; while that is blank the cover stays empty). The UI
-fetches covers from Visia over `luna_sentia_network`; tracks without one show a generated
-placeholder. Visia must be running for covers to be set or shown.
+<p align="center">
+  <img src="docs/showcase.png" alt="Luna Vibia library playing a looped sleep playlist on an Echo Dot, started from a chat assistant" width="900">
+</p>
 
 ## Quickstart
 
-On one machine you need no `.env`. Clone Vibia beside [Luna Sentia](https://github.com/pranjallk1995/Luna_Sentia),
-which runs its database, models, and sign-in, then start both:
+Vibia runs on [Luna Sentia](https://github.com/pranjallk1995/Luna_Sentia), which provides its database, caption
+model and sign-in. On one machine you need no `.env`:
 
 ```sh
 git clone https://github.com/pranjallk1995/Luna_Sentia.git
@@ -264,318 +45,39 @@ git clone https://github.com/pranjallk1995/Luna_Vibia.git
 ./Luna_Sentia/luna.sh start vibia
 ```
 
-`start` pulls the release images, starts Sentia and waits until it is healthy, then starts
-Vibia. Once both are up, it deletes the images their new ones replaced. Open
-<http://localhost:18504> and sign in as Sentia's owner with one click. Playing tracks on the host's speakers also needs the speaker helper; see [Start](#start). To run your
-local code instead, use `./Luna_Sentia/luna.sh start --build vibia`. Before giving Vibia a
-public address, set your own secrets as described in [Start](#start). Every option of
-`luna.sh` is in [Start everything](https://github.com/pranjallk1995/Luna_Sentia#start-everything).
+Open <http://localhost:18504> and sign in as Sentia's owner. Playing on the host's speakers also needs the speaker
+helper, and a public address needs your own secrets: see
+[Getting started](https://github.com/pranjallk1995/Luna_Vibia/wiki/Getting-Started).
 
-<p align="center">
-  <a href="https://github.com/pranjallk1995/Luna_Sentia/blob/main/assets/luna-sh-demo.mp4"><img src="https://raw.githubusercontent.com/pranjallk1995/Luna_Sentia/main/assets/luna-sh-demo.webp" alt="A terminal running luna.sh: starting Sentia and every app, showing one app's containers, stopping and starting Lumia alone, listing every app's containers, then watching Lumia while a saved file syncs and restarts its UI" width="900"></a>
-</p>
+## Connect your AI assistant
 
-<p align="center"><em>Start everything, check one app, stop and start it alone, list every app, then
-develop with <code>--watch</code>. Select it for the sharper video.</em></p>
+Add `https://<your vibia MCP host>/mcp` to Claude, ChatGPT or any MCP client as a custom connector (OAuth). An
+assistant that generates a song uploads it straight away, then makes its cover. Every tool is listed in
+[MCP tools](https://github.com/pranjallk1995/Luna_Vibia/wiki/MCP-Tools).
 
-## Releases
+## Works with
 
-Each release is on the [Releases page](https://github.com/pranjallk1995/Luna_Vibia/releases), with what changed and how to
-upgrade. The `docker-compose.yaml` on `main` names the images of the latest release, so
-`git pull`, then `./Luna_Sentia/luna.sh start`, updates to it. When a release needs a newer
-Luna Sentia, its notes say so: upgrade Sentia first. The release of every Luna app is
-listed in [Luna Sentia's Releases](https://github.com/pranjallk1995/Luna_Sentia#releases).
+- **[Luna Visia](https://github.com/pranjallk1995/Luna_Visia)** stores the cover art.
+- **[Luna Lumia](https://github.com/pranjallk1995/Luna_Lumia)** reads what is playing, its mood and beats, so the
+  lights can follow the music.
 
-## Start
+## Documentation
 
-Start [Luna Sentia](https://github.com/pranjallk1995/Luna_Sentia) first and wait until it
-is healthy. Sentia's PostgreSQL holds Vibia's `lunavibia` database (with pgvector) and its
-Ollama serves the caption model.
+The [wiki](https://github.com/pranjallk1995/Luna_Vibia/wiki) has the full reference:
 
-```sh
-cd ../Luna_Sentia
-docker compose up -d --wait postgres ollama adminer
-docker compose run --rm postgres-init   # creates the lunavibia role and database
-```
+| Page | What's in it |
+| --- | --- |
+| [Home](https://github.com/pranjallk1995/Luna_Vibia/wiki) | What Vibia is |
+| [Getting started](https://github.com/pranjallk1995/Luna_Vibia/wiki/Getting-Started) | Setup, `.env`, sign-in, the speaker helper, GPU listening |
+| [MCP tools](https://github.com/pranjallk1995/Luna_Vibia/wiki/MCP-Tools) | Every tool your assistant can call |
+| [Architecture](https://github.com/pranjallk1995/Luna_Vibia/wiki/Architecture) | How a track is processed, search, playlists, covers, models, data model and database diagram |
+| [Development](https://github.com/pranjallk1995/Luna_Vibia/wiki/Development) | Modules, tests, model evaluations |
+| [Operations](https://github.com/pranjallk1995/Luna_Vibia/wiki/Operations) | The database UI |
 
-`LUNAVIBIA_DB_PASSWORD` in Sentia's `.env` must equal `POSTGRES_PASSWORD` in Vibia's.
-To start Sentia and every Luna app together, use `../luna.sh start`; see the
-[Sentia README](https://github.com/pranjallk1995/Luna_Sentia#start-everything).
+The UI follows [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md).
 
-A fresh clone needs no `.env`: `luna.sh start` runs Vibia with localhost defaults, where only Luna Sentia's owner may use it and the UI-to-backend token is `lunavibia-dev-token-for-localhost-only`. Set your own values before giving it a public (https) address; `luna.sh start` refuses a public app that still uses the default token.
+## Releases and development
 
-To change them, create a private `.env` from `.env.example`:
-
-```dotenv
-POSTGRES_PASSWORD=replace-with-a-private-database-password
-CAPTION_MODEL=huihui_ai/qwen3-vl-abliterated:8b-instruct
-CLAP_DEVICE=auto
-LUNAVISIA_API_URL=http://luna-visia-mcp:8000
-LUNAVIBIA_PUBLIC_BASE_URL=
-LUNAVIBIA_API_TOKEN=replace-with-a-random-value-of-at-least-32-characters
-LUNAVIBIA_ALLOWED_EMAILS=*
-MCP_PUBLIC_URL=http://localhost:18004
-PULSE_SOCKET=/mnt/wslg/PulseServer
-LUNAVIBIA_SPEAKER_HELPER_URL=http://host.docker.internal:18007
-LUNAVIBIA_PLACEHOLDER_COVER_ID=
-LUNA_SSO_URL=http://localhost:19001
-LUNA_SSO_INTERNAL_URL=http://luna-sentia-auth:8000
-```
-
-- `LUNAVIBIA_API_TOKEN` is a shared secret between the UI and the MCP server; generate
-  one with `openssl rand -hex 32`.
-- `LUNAVIBIA_PUBLIC_BASE_URL` is the HTTPS origin of playable track URLs
-  (`.../api/public/tracks/<track-id>`), such as `https://vibia.example.com` routed to
-  `127.0.0.1:18004`; leave it blank without a tunnel. With a tunnel, `MCP_PUBLIC_URL` and
-  `LUNA_SSO_URL` change to their public HTTPS addresses too.
-- Sign-in goes through Luna Sentia's single sign-on, as in every Luna app; see
-  [Single sign-on](https://github.com/pranjallk1995/Luna_Sentia#single-sign-on).
-
-```sh
-docker compose up -d
-```
-
-- UI: <http://127.0.0.1:18504>
-- Service health: <http://127.0.0.1:18004/health>
-- MCP endpoint: <http://127.0.0.1:18004/mcp> (clients sign in; see Connecting an MCP client)
-
-### Caption model
-
-`CAPTION_MODEL` (`huihui_ai/qwen3-vl-abliterated:8b-instruct`, the model Visia, Lexia, Fiora and Luna Socia's photos use) must be listed
-in Sentia's `SENTIA_MODELS`. It never hears the audio: it writes the caption and tags
-from what CLAP heard and the measurements. Before changing it, compare the new model
-with the current one on the whole library: [`model_evaluations/`](model_evaluations/README.md)
-captions every stored track with both from the same evidence, without writing to the
-database, and scores how well each caption matches the track's sound in CLAP's space,
-how many tags the evidence supports, failures and time. The full list of checks is in
-Sentia's [Changing a model](https://github.com/pranjallk1995/Luna_Sentia#changing-a-model).
-
-### GPU listening (optional)
-
-A GPU is not required: without one, CLAP runs on the CPU, and a track takes about
-0.6 s longer to hear. With an NVIDIA GPU, the `mcp` service is given it (`gpus: all` in
-`docker-compose.yaml`) and CLAP runs there. On an RTX 5070, hearing a 45-second track
-takes about 0.3 s instead of 0.9 s (preparing the clips stays on the CPU either way),
-using about 0.85 GB of GPU memory beside Ollama's model. Search embeds only a short text, which is quick either way.
-
-- **No NVIDIA GPU:** remove `gpus: all` from the `mcp` service, or Docker refuses to
-  start it. Nothing else changes.
-- **`CLAP_DEVICE`:** `auto` (the default) uses a CUDA GPU when one is visible and the
-  CPU otherwise; `cuda` or `cpu` force one. `cpu` keeps CLAP off a GPU you want to
-  leave to Ollama.
-- **Moving between them** needs no re-analysis: CLAP runs in full precision on both, so
-  embeddings made on the GPU match those made on the CPU.
-
-CLAP keeps its place on the GPU. Luna Lexia's Docling reads a document on the CPU
-whenever the GPU has less than 2 GB free, and releases its working memory after every
-document. If a CLAP call still finds the GPU full, it tries twice more, 1 s and then 2 s
-later, while Docling finishes its document, then runs that call on the CPU.
-
-## MCP tools
-
-### Web UI
-
-- `get_ui_link` - the link to open this app's web UI, to give the user; they sign in with their Luna account.
-
-### Find and play
-
-- `search_tracks` - rank tracks for a description ("upbeat electronic for a run"), with optional tags and length limits.
-- `suggest_playlist` - a looping playlist for a mood or moment, about `minutes` long, without near-duplicates.
-- **Web UI:** the **Sort** menu beside the search box orders the library by similarity (the default), newest or oldest, title, artist, length, tempo, or file size; the browser remembers the choice.
-- `sort_tracks` - arrange the library: `order="similarity"` saves an order where neighbors sound alike, by the cosine similarity of their CLAP embeddings, and new tracks are slotted in beside their closest match; `order="newest"` clears it.
-- `list_tracks` - visible tracks in the saved order or newest first, with captions, facts, `cover_url`, and playable `public_url`.
-- `get_track_url` - the playable public URL of one track.
-
-### Playlists
-
-- `list_playlists` / `get_playlist` - the saved playlists, and one playlist's tracks in order.
-- `create_playlist` - save a playlist, optionally with tracks (for example from `suggest_playlist`).
-- `update_playlist` / `delete_playlist` - rename it or change its description, or delete it; its tracks stay in the library.
-- `add_tracks_to_playlist` / `remove_tracks_from_playlist` - add tracks at a position or at the end, or take them out.
-- `reorder_playlist` / `move_playlist_track` - put every track in a new order, or move one track to a position.
-- `play_playlist` - play it on the host's speakers, in order or with `shuffle`, optionally looped; the saved order stays.
-
-### Play on the host's speakers
-
-- `play_tracks` - play tracks out loud, in order and optionally looped, on a speaker of the machine running Vibia. With several speakers connected and none named, nothing plays: it returns `choose_speaker` and the options so the LLM asks which one.
-- `list_speakers` - the connected speakers (under WSL, Windows' Bluetooth speakers), with the current output marked.
-- `switch_speaker` - move what is playing to another speaker; the current track resumes there at the second it had reached. `play_tracks` with the same queue does the same instead of restarting.
-- `get_volume`, `change_volume`, `set_volume` - the volume (0-100) of the speaker the host plays on now: read it, turn it up or down (`by`, e.g. 10 or -10), or set it and mute or unmute it. Under WSL this is Windows' volume for that output, which a Bluetooth speaker follows, so everything playing on it changes.
-- `repair_audio` / `get_audio_repair_status` - get playback working again when it fails with "Nothing was written into output file": the first starts `host/repair_audio.sh` on the host through the speaker helper, the second reports how it went. Owner only; needs the speaker helper.
-- `get_playback_status` / `stop_playback` - what is playing (with `position_seconds` into the current track, and `track`: its caption, tags, tempo, and key), and stop it.
-
-[Luna Lumia](https://github.com/pranjallk1995/Luna_Lumia) reads the same status from `GET /api/playback?output=0`
-(`output=0` skips asking Windows for its current speaker) to light the room for each
-track's mood, for example soft light blues with slow fades for a loop of sleep tracks.
-For beat pulses it also reads `started_at`, the Unix time of the playing track's second 0,
-and `GET /api/tracks/{name}/beats`: the beat times (seconds) and strengths (0-1) of the
-whole track, which librosa works out the first time a track is asked for (about two
-seconds) and the `track_beats` table keeps by file content.
-
-The MCP container plays through the host's PulseAudio (or PipeWire) server, whose
-socket `PULSE_SOCKET` mounts into it. On Linux, set it to `/run/user/1000/pulse/native`
-(your user ID in place of 1000) and leave `LUNAVIBIA_SPEAKER_HELPER_URL` blank: every
-speaker is listed.
-
-Under WSL (the default, `/mnt/wslg/PulseServer`), WSLg exposes one output that plays on
-Windows' default device, so a small helper on the WSL host picks the speaker:
-`host/speaker_helper.py` lists Windows' connected Bluetooth speakers and, when the LLM
-names one ("play something calm on the echo dot"), makes it Windows' default output
-(through `host/windows_audio.ps1`); WSLg's audio follows. It uses only the Python
-standard library and the shared `LUNAVIBIA_API_TOKEN`. Install it once as a user
-service, from this directory:
-
-```sh
-mkdir -p ~/.config/systemd/user
-sed "s#@VIBIA_DIR@#$PWD#g" host/luna-vibia-speakers.service > ~/.config/systemd/user/luna-vibia-speakers.service
-systemctl --user daemon-reload && systemctl --user enable --now luna-vibia-speakers
-```
-
-The container reaches it at `LUNAVIBIA_SPEAKER_HELPER_URL`
-(`http://host.docker.internal:18007`). Listing takes about 5 seconds, as PowerShell
-reads Windows' devices. Restart Vibia after the host's sound server restarts (for
-example after `wsl --shutdown`).
-
-If Docker starts Vibia at boot before WSLg has made its socket, Docker creates a directory
-at `/mnt/wslg/PulseServer`, and playback then fails with "Nothing was written into output
-file". Ask the assistant to repair it (`repair_audio`), or run `host/repair_audio.sh` in WSL,
-not PowerShell. It removes that directory if it is empty, restarts WSLg's sound server, and
-recreates the MCP container, and it does nothing when audio already works. Add `--check` to
-only report. After changing `host/`, run `systemctl --user restart luna-vibia-speakers`.
-
-`luna.sh start` also starts `luna_vibia-speakers-1`, a container that only checks the helper's
-`/health` every 30 seconds, so `docker ps` shows whether the helper is up (healthy) or not
-(unhealthy). It is not waited for, so a stopped helper never holds Vibia up; with
-`LUNAVIBIA_SPEAKER_HELPER_URL` blank it exits at once.
-
-### Add and change
-
-- `upload_track` - add MP3, WAV, FLAC, OGG/Opus, or M4A from a chat attachment (`file`), `track_url`, or `content_base64`, with optional `title`, `artist`, and generator `notes`, and cover art: a generated image as `cover_file`, `cover_url`, or `cover_content_base64` (stored in Luna Visia), or an existing Visia `cover_url`. Without one, the track gets the audio placeholder. Names are corrected and deduplicated like Visia's.
-- `create_upload_link` - a single-use HTTPS link to POST a local file to (up to 200 MiB).
-- `modify_track` - replace a track's audio; title, artist, notes, and cover are kept.
-- `set_track_cover` - set the cover to a Luna Visia image, or to the audio placeholder when none fits.
-- `update_track_cover` - store generated or attached cover art in Luna Visia and set it as the cover in one call.
-- `set_track_covers` - set up to 100 tracks' covers to Luna Visia images, or the placeholder, each entry reported under `updated` or `failed`.
-- `search_track_covers` - find tracks by cover kind (`art`, `placeholder`, `none`), by the Visia image they use, or by words in the name, title, or artist, with each track's title and a count per kind.
-- `update_track_metadata` / `update_tracks_metadata` - edit captions and tags.
-- `rename_track` / `rename_tracks`, `set_favorite_tracks`, `remove_track` / `remove_tracks` (up to 100 at once, each reported on its own).
-
-### Metadata and library
-
-- `get_track_metadata` / `list_track_metadata` - stored, measured, and embedded details, including AI-generator signals.
-- `get_library_stats` - counts, listening time, formats, covers, and top tags.
-- `download_tracks` - a 24-hour ZIP link to the original files.
-- `backfill_metadata` - analyze files missing current metadata.
-- `set_public_base_url` - change the public origin and regenerate every track URL.
-- `set_starter_tracks` - owner only: choose the tracks everyone starts with; hidden tracks and favorites are never included.
-
-## Data model
-
-### Database diagram
-
-Each person's schema (`u_<id>` in the `lunavibia` database) holds these tables, drawn from the live database. Lines are foreign keys; a table without one is joined by value (a name, a date, an ID kept as text). `PK` marks primary keys, `FK` foreign keys, `UK` unique columns.
-
-```mermaid
-erDiagram
-    playlist_tracks {
-        uuid playlist_id PK, FK
-        uuid track_id PK, FK
-        int4 position
-        timestamptz added_at
-    }
-    playlists {
-        uuid playlist_id PK
-        text name
-        text description
-        timestamptz created_at
-        timestamptz updated_at
-    }
-    starter_pack {
-        bool singleton PK
-        text state
-        text source
-        timestamptz decided_at
-        timestamptz loaded_at
-    }
-    starter_received {
-        uuid source_track_id PK
-        timestamptz received_at
-    }
-    track_beats {
-        bpchar content_sha256 PK
-        float4 tempo_bpm
-        float4_array beats
-        float4_array strengths
-        timestamptz created_at
-    }
-    track_metadata {
-        text name PK
-        uuid track_id
-        int8 size_bytes
-        bpchar content_sha256
-        text caption
-        text_array tags
-        text analysis_model
-        text audio_format
-        float4 duration_seconds
-        int4 sample_rate
-        int4 channels
-        int4 bitrate
-        text title
-        text artist
-        text notes
-        float4 tempo_bpm
-        text musical_key
-        float4 energy
-        text cover_url
-        vector embedding
-        timestamptz created_at
-        timestamptz updated_at
-        tsvector search_vector
-        bool hidden
-        bool favorite
-        text public_url
-        int4 showcase_rank
-        bool starter
-    }
-    vault_config {
-        bool singleton PK
-        text public_base_url
-        timestamptz updated_at
-    }
-    vault_security {
-        bool singleton PK
-        bytea password_salt
-        bytea password_hash
-        bytea reset_pin_salt
-        bytea reset_pin_hash
-        int4 iterations
-        timestamptz updated_at
-    }
-    playlists ||--o{ playlist_tracks : "playlist_id"
-    track_metadata ||--o{ playlist_tracks : "track_id"
-```
-
-`track_metadata` holds one row per track: name, immutable `track_id`, size and SHA-256,
-caption and tags, title, artist, generator notes, format, duration, sample rate,
-channels, bitrate, tempo, key, energy, `cover_url`, the CLAP `embedding` (pgvector, HNSW
-cosine index), an optional similarity `showcase_rank`, a weighted full-text `search_vector`, and the hidden, favorite,
-starter, and public-URL fields. `starter_received` records which of the owner's starter tracks a person has been given. `playlists` holds each playlist's name and description, and
-`playlist_tracks` its tracks by `track_id` and position. `vault_security` and
-`vault_config` are as in Luna Visia.
-
-## Database UI
-
-Use [Adminer in Luna Sentia](https://github.com/pranjallk1995/Luna_Sentia#database-ui) at
-<http://127.0.0.1:19000>: server `luna-sentia-db`, username and database `lunavibia`,
-password your `POSTGRES_PASSWORD`.
-
-## Development workflow
-
-```sh
-docker compose up -d --build
-docker compose exec mcp python -m unittest discover -s tests
-```
-
-Tests use fake CLAP and caption models and real ffmpeg, so they run in the MCP image
-without the model weights being loaded.
+Releases are on the [Releases page](https://github.com/pranjallk1995/Luna_Vibia/releases). To update: `git pull`, then
+`./Luna_Sentia/luna.sh start vibia`. To run your local code and reload it as you edit:
+`./Luna_Sentia/luna.sh start --build --watch vibia`.

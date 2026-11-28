@@ -1,8 +1,9 @@
 # Luna UI style guide
 
-Shared visual reference for every Luna app with a UI: Visia, Vita, Lumia, Fiora,
-Lexia, Vibia, and Unia. This file is identical in all seven repositories. Any
-change goes into all seven copies at the same time.
+Shared visual reference for every Luna app with a React UI: Visia, Vita, Lumia, Fiora,
+Lexia, Vibia, and Unia. Luna Socia keeps a copy for its own pages, which use the same
+palette and `lv-` classes. This file is identical in all eight repositories. Any change
+goes into all eight copies at the same time.
 
 Luna Visia is the reference implementation. When this guide and the code
 disagree, check this guide first, fix the code to match it, and record any
@@ -136,7 +137,7 @@ The subtitle always follows the pattern "Private AI-managed …".
 | App | Controls, left to right |
 | --- | --- |
 | Luna Visia | Grid view, List view, **Upload Images** (primary), Sign out |
-| Luna Vita | Log date picker, Sign out |
+| Luna Vita | Previous day (icon only), Log date picker, Next day (icon only), Sign out |
 | Luna Lumia | Check lights (icon only), **Turn all on / off** (primary), Sign out |
 | Luna Fiora | From date, To date, Sign out |
 | Luna Lexia | Grid view, List view, **Upload Docs** (primary), Sign out |
@@ -297,6 +298,15 @@ Visia, Vibia, and Lexia share one gallery design, built around the picture.
   screens. The Favorites section uses the same heart icon.
 - **Grid:** three columns, four from `1760px` with a `1720px` page, and two on phones.
 - **Search:** the box shows how many items match, such as "13 tracks".
+- **Sort:** a `lv-select lv-sort` menu beside the search box, labelled "Sort by". It
+  opens on **Similarity**, the order the library gives (best match first while searching),
+  and offers date, name, and size orders, plus each app's own: Visia most pixels, Vibia
+  artist, length, and tempo, Lexia document date, type, and pages. Each order has both
+  directions as separate entries ("Name, A to Z" and "Name, Z to A"). Items with no value
+  for the order go last in either direction, ties keep their similarity order, and the
+  choice is remembered in local storage and goes back to the first page. The orders live
+  in `sorting.ts` (`SORTS`, `sortItems`); sorting happens in the browser, on the filtered
+  list, before paging.
 
 ### Full-window view
 
@@ -336,6 +346,27 @@ in the thumbnail URL as well as new sizes in `config.py`.
 - **Forms:** `lv-form`, `lv-form-row`, and `lv-field`, with visible labels. A refused
   form keeps what was typed.
 
+## Adding a missing picture
+
+Where another app's picture is missing (a food photo in Vita, a track cover in Vibia, a
+room, group, or light picture in Lumia), the place it would be offers to add one right
+there, rather than sending people to Luna Visia.
+
+- **Where:** on the empty or placeholder picture itself: Vita's **+** on a food's photo
+  tile (`vt-photo-add`), Vibia's **Add cover** on the card's art (`lv-add-cover`) and
+  **Upload cover** in its dialog, Lumia's **Add image** on a room or group's photo band
+  and under a light's **Adjust**. It shows only while the item has no picture of its own;
+  a placeholder or a borrowed catalog picture counts as none.
+- **Look:** the `ImagePlus` icon with a short label, or the icon alone in a small tile,
+  with an `aria-label` and a `title` that say the picture is stored in Luna Visia.
+- **Flow:** the button opens the file picker straight away, with no dialog. The browser
+  fits the picture to the app's shape (3:2 for covers and food) before sending it. While
+  Visia captions it, the button is disabled with `aria-busy` and an `lv-busy-dot`, and a
+  toast says it is being stored; a second toast says where it now shows. A failure keeps
+  the old picture and shows the backend's reason.
+- **Result:** the backend stores the picture in Visia with the app's tags, as the
+  assistant's tools do, and every place that item appears shows it.
+
 ## Footer
 
 Every Luna UI ends its signed-in page with `lv-footer`, the last thing inside `lv-page`:
@@ -368,6 +399,42 @@ Fiora's `LineChart` uses `#3987e5` for income and `#d95926` for expenditure. Vit
 macro colors are protein `#4ade80`, carbs `#60a5fa`, fat `#fbbf24`, natural sugar
 `#c084fc`, and added sugar `#fb7185`. A color always means the same thing within an app.
 
+## App screens
+
+Screens only one app has. Their classes use the app's prefix.
+
+### Vita: Health Reports
+
+- A report picker (date select with previous and next arrows) above one `vt-card` per
+  report section: the report's facts in muted text, then counts of results in range,
+  low, high, and abnormal.
+- Results sit in folding panels, with **Find a test**, **Collapse all**, and an
+  **Out of range** or **All results** toggle; a report with results out of range opens on
+  **Out of range**.
+- Status is a pill (`vt-lab-status`) outlined and written in its state color: in range
+  `--vt-good`, low or high `--vt-warn`, abnormal `--vt-bad`, unknown muted. Never fill
+  the pill, and always write the status in words, not color alone.
+- Trends follow [Charts](#charts): one line in `vt-lab-line`, the report's reference
+  interval as a shaded band (`vt-lab-band`), and dates under the points.
+- **View PDF** opens the report in a dialog through Vita's own gateway, so it works
+  on phones. Status describes a result against its printed range; the page never
+  offers a diagnosis.
+
+### Lumia: PC tab
+
+- One `ll-panel ll-pc-card` per PC light: keyboards first, then mice and case parts.
+  The head names the device, its zone or LED range, and how many keys or LEDs it has.
+- The surface is an SVG drawn from the device's own layout: keys as rounded squares with
+  their labels (`ll-pc-keyboard`), LEDs as dots in a row (`ll-pc-strip`). Press and drag
+  paints like a brush; each key has a `<title>` with its name.
+- Tools below it: brush color with the color chips and **Erase**, group buttons
+  (WASD, Arrows, ...), background color, **Fill with brush**, **Rainbow**, **Clear**,
+  brightness, a **Live** toggle, and **Save as scheme**. A pressed tool uses `ll-pc-on`
+  and `aria-pressed`.
+- With **Live** on, the device gets the pattern 250 ms after the last stroke, one
+  request rather than one per key, following "Finished choices" under
+  [Behavior](#behavior).
+
 ## Known deviations
 
 These are differences in the code today. Each should either be fixed to match this
@@ -375,12 +442,12 @@ guide or deliberately accepted here.
 
 | App | Deviation | Guide says |
 | --- | --- | --- |
-| Vita, Lumia, Fiora, Unia | Use the system monospace stack. | Self-hosted Source Code Pro. |
-| Vita, Lumia, Fiora | Navbar gap is `.35rem` with a `1rem` bottom margin; selected and hovered labels turn to primary text, without the hover lift. | `.2rem`, `.2rem 0 1.15rem`, muted labels, and `translateY(-1px)`. |
+| Lumia, Fiora, Unia | Use the system monospace stack. | Self-hosted Source Code Pro. |
+| Lumia, Fiora | Navbar gap is `.35rem` with a `1rem` bottom margin; selected and hovered labels turn to primary text, without the hover lift. | `.2rem`, `.2rem 0 1.15rem`, muted labels, and `translateY(-1px)`. |
 | Visia, Vibia, Lexia | Navbar uses `grid-template-columns: repeat(3, 1fr)`. | `grid-auto-flow: column`, which fits any number of sections. Harmless with three. |
 | Visia, Vibia, Lexia | In windows 1760px and wider, the page grows to `1720px` and the gallery to four columns, so the header and navbar no longer line up with the other apps at those widths. | `max-width: 1180px`. Accepted, because a gallery wastes most of a wide window at 1180px. |
+| Vita | In windows 1760px and wider, the page grows to `1720px`, as in Visia, Vibia, and Lexia, with the nutrient tiles in one row and a wider side column. | `max-width: 1180px`. Accepted, because the food log and charts have room to use at that width. |
 | Visia | The content security policy has no `font-src 'self' data:`, so the browser refuses the font's inlined files. | Add it, as Vibia and Lexia have. |
-| Vita | Adds short aliases (`--panel`, `--text`, `--muted`, and others) for its chart and calendar rules. | `--lv-*` names. |
 | Lumia | Deleting a light, room, scheme, or schedule has no confirmation. | Nothing here deletes a stored file, so this is accepted for now. Revisit if mistaken deletes happen. |
 | Unia | In windows 1760px and wider, the page grows to `1720px` and the card grid to four columns, as in Visia, Vibia, and Lexia. | `max-width: 1180px`. Accepted, because the cards have room to use at that width. |
 | Unia | No navbar. Its one page is a grid of app cards, and the status summary above the grid (`.lu-summary`) takes the navbar's surface and `.2rem 0 1.15rem` margin. | Full-width navbar below the header. Accepted: Unia has nothing to navigate between. |
